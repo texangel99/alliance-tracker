@@ -923,6 +923,18 @@ select.form-input { appearance: none; cursor: pointer; }
     </div>
 
     <div class="settings-section">
+      <div class="settings-section-title">Session</div>
+      <div class="settings-item" onclick="logoutApp()" style="background:rgba(232,125,125,0.06);border-color:rgba(232,125,125,0.2);">
+        <div class="settings-item-icon">🚪</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title" style="color:var(--rose);">Log Out</div>
+          <div class="settings-item-sub">Clears session — PIN required on next open</div>
+        </div>
+        <div class="settings-item-arrow" style="color:var(--rose);">›</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-section-title">Data</div>
       <div class="settings-item" onclick="exportCSV()">
         <div class="settings-item-icon">📤</div>
@@ -1150,17 +1162,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// ── Expose DB operations ──
 window._db = db;
-window._col = collection;
-window._addDoc = addDoc;
-window._getDocs = getDocs;
-window._doc = doc;
-window._updateDoc = updateDoc;
-window._deleteDoc = deleteDoc;
-window._query = query;
+window._col  = (colPath) => collection(db, colPath);
+window._addDoc  = (colRef, data) => addDoc(colRef, data);
+window._getDocs = (q) => getDocs(q);
+window._doc     = (colPath, docId) => doc(db, colPath, docId);
+window._updateDoc = (ref, data) => updateDoc(ref, data);
+window._deleteDoc = (ref) => deleteDoc(ref);
+window._query   = (...args) => query(...args);
 window._orderBy = orderBy;
 
-// ── PIN helpers (DB-backed, same PIN across all browsers/devices) ──
+// ── PIN ──
 window._pinLoad = async () => {
   try {
     const snap = await getDoc(doc(db, 'settings', 'pin'));
@@ -1168,14 +1181,45 @@ window._pinLoad = async () => {
   } catch(e) { return null; }
 };
 window._pinSet = async (pin) => {
-  try {
-    await setDoc(doc(db, 'settings', 'pin'), { value: pin });
-  } catch(e) { console.error('PIN save error', e); }
+  try { await setDoc(doc(db, 'settings', 'pin'), { value: pin }); }
+  catch(e) { console.error('PIN save error', e); }
 };
 
-window.addEventListener('appReady', loadContacts);
+// ── Server-side session store ──
+// Generates a random session token, writes to Firestore settings/session
+// On refresh, reads it back — if it matches localStorage, skip PIN
+window._sessionCreate = async () => {
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try {
+    await setDoc(doc(db, 'settings', 'session'), { token, ts: Date.now() });
+    localStorage.setItem('at_session', token);
+  } catch(e) { console.error('session create error', e); }
+};
+window._sessionCheck = async () => {
+  const local = localStorage.getItem('at_session');
+  if (!local) return false;
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'session'));
+    if (!snap.exists()) return false;
+    return snap.data().token === local;
+  } catch(e) { return false; }
+};
+window._sessionDestroy = async () => {
+  localStorage.removeItem('at_session');
+  try { await setDoc(doc(db, 'settings', 'session'), { token: '', ts: 0 }); }
+  catch(e) {}
+};
 
-// ── Signal that Firebase is ready, then start PIN flow ──
+// ── Load contacts helper (called once after unlock) ──
+window._loadContacts = async () => {
+  const q = query(collection(db, 'contacts'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  const list = [];
+  snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+  return list;
+};
+
+// ── Signal Firebase ready ──
 window._firebaseReady = true;
 window.dispatchEvent(new Event('firebaseReady'));
 </script>
@@ -1202,20 +1246,21 @@ function toggleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 applyTheme(currentTheme);
 
 // ══════════════════════════════
-// PIN LOGIC
+// PIN + SESSION LOGIC
 // ══════════════════════════════
 let pinBuffer = '';
 let pinConfirmBuffer = '';
-let pinStep = 'loading'; // 'loading' | 'enter' | 'set1' | 'set2' | 'change-verify'
+let pinStep = 'loading';
 
 async function initPin() {
-  // If already unlocked in this browser session (e.g. page refresh), skip PIN
-  if (sessionStorage.getItem('at_unlocked') === 'yes') {
-    // Verify PIN still exists in DB (not reset), then unlock silently
+  document.getElementById('pinSubtitle').textContent = 'Checking session...';
+  // Check server-side session first — if valid, skip PIN entirely
+  const sessionOk = await window._sessionCheck();
+  if (sessionOk) {
     const savedPin = await window._pinLoad();
     if (savedPin) { unlockApp(); return; }
   }
-  document.getElementById('pinSubtitle').textContent = 'Loading...';
+  // No valid session — show PIN
   const savedPin = await window._pinLoad();
   if (!savedPin) {
     pinStep = 'set1';
@@ -1257,6 +1302,7 @@ async function processPIN() {
   if (pinStep === 'set2') {
     if (pinBuffer === pinConfirmBuffer) {
       await window._pinSet(pinBuffer);
+      await window._sessionCreate();
       unlockApp();
     } else {
       showPinError('PINs do not match. Try again.');
@@ -1272,15 +1318,16 @@ async function processPIN() {
       pinBuffer = ''; updatePinDots();
       pinStep = 'set1';
       document.getElementById('pinSubtitle').textContent = 'Set new PIN';
-      document.getElementById('pinMsg').textContent = '✅ Verified! Set new PIN.';
+      document.getElementById('pinMsg').textContent = '✅ Verified! Set your new PIN.';
     } else {
       showPinError('Wrong PIN. Try again.');
     }
     return;
   }
-  // enter
+  // Normal enter
   const saved = await window._pinLoad();
   if (pinBuffer === saved) {
+    await window._sessionCreate();  // create/refresh server session on login
     unlockApp();
   } else {
     showPinError('Wrong PIN. Try again.');
@@ -1297,26 +1344,40 @@ function showPinError(msg) {
 }
 
 function unlockApp() {
-  sessionStorage.setItem('at_unlocked', 'yes');
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
-  window.dispatchEvent(new Event('appReady')); // triggers loadContacts -> checkTodayFollowups
+  loadContacts();  // load directly, not via event
   requestNotificationPermission();
   const t = localStorage.getItem('at_reminder_time');
   if (t) scheduleReminder(t);
   applyTheme(currentTheme);
 }
 
+async function logoutApp() {
+  if (!confirm('Log out? You will need your PIN to log back in.')) return;
+  await window._sessionDestroy();
+  contacts = [];
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('pinScreen').style.display = 'flex';
+  pinBuffer = ''; pinConfirmBuffer = '';
+  updatePinDots();
+  document.getElementById('pinMsg').textContent = '';
+  // Go back to home screen for next login
+  showHome();
+  await initPin();
+}
+
 async function resetPin() {
   if (!confirm('Reset PIN? You will need to set a new one.')) return;
-  sessionStorage.removeItem('at_unlocked');
+  await window._sessionDestroy();
   await window._pinSet('');
   pinBuffer = ''; updatePinDots();
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('pinScreen').style.display = 'flex';
   initPin();
 }
 
 async function changePIN() {
-  sessionStorage.removeItem('at_unlocked');
   document.getElementById('app').classList.remove('visible');
   document.getElementById('pinScreen').style.display = 'flex';
   pinBuffer = ''; pinConfirmBuffer = '';
@@ -1372,17 +1433,15 @@ let thosamVal = 'na';
 
 async function loadContacts() {
   try {
-    const q = window._query(window._col(window._db, 'contacts'), window._orderBy('createdAt', 'desc'));
-    const snap = await window._getDocs(q);
-    contacts = [];
-    snap.forEach(d => contacts.push({ id: d.id, ...d.data() }));
+    document.getElementById('contactsList').innerHTML =
+      '<div class="loading"><div class="spinner"></div>Loading profiles...</div>';
+    contacts = await window._loadContacts();
     renderContacts();
     updateStatsRow();
     checkTodayFollowups();
-    // If on dash already, update it too
     if (document.getElementById('dashScreen').classList.contains('visible')) updateDashboard();
   } catch(e) {
-    console.error(e);
+    console.error('loadContacts error:', e);
     document.getElementById('contactsList').innerHTML =
       '<div class="empty-state"><div class="emoji">⚠️</div><p>Could not load. Check Firestore rules.</p></div>';
   }
@@ -1709,14 +1768,14 @@ async function saveContact() {
 
   try {
     if (editingId) {
-      await window._updateDoc(window._doc(window._db, 'contacts', editingId), data);
+      await window._updateDoc(window._doc('contacts', editingId), data);
       const idx = contacts.findIndex(c => c.id===editingId);
       if (idx !== -1) contacts[idx] = {...contacts[idx], ...data};
       showToast('✅ Profile updated!');
     } else {
       data.createdAt = Date.now();
       data.statusHistory = [{ from: null, to: (data.statuses||[]).join(' + '), at: Date.now() }];
-      const ref = await window._addDoc(window._col(window._db, 'contacts'), data);
+      const ref = await window._addDoc(window._col('contacts'), data);
       contacts.unshift({ id: ref.id, ...data });
       showToast('✅ Profile added!');
     }
@@ -1794,7 +1853,7 @@ function closeDetail() { document.getElementById('detailScreen').classList.remov
 async function deleteCurrentContact() {
   if (!confirm('Delete this profile permanently?')) return;
   try {
-    await window._deleteDoc(window._doc(window._db, 'contacts', currentDetailId));
+    await window._deleteDoc(window._doc('contacts', currentDetailId));
     contacts = contacts.filter(c => c.id !== currentDetailId);
     closeDetail();
     renderContacts();
@@ -1942,7 +2001,7 @@ async function doImport(e) {
     for (const c of data) {
       c.createdAt = c.createdAt || Date.now();
       c.modifiedAt = Date.now();
-      await window._addDoc(window._col(window._db,'contacts'), c);
+      await window._addDoc(window._col('contacts'), c);
     }
     await loadContacts();
     showToast(`✅ ${data.length} contacts imported!`);
@@ -2058,12 +2117,12 @@ function openLightboxFromDetail(imgEl) {
 })();
 
 // ══════════════════════════════
-// INIT — wait for Firebase before PIN
+// INIT — wait for Firebase, then check session / show PIN
 // ══════════════════════════════
 if (window._firebaseReady) {
   initPin();
 } else {
-  window.addEventListener('firebaseReady', initPin, { once: true });
+  window.addEventListener('firebaseReady', () => initPin(), { once: true });
 }
 </script>
 <!-- ══ LIGHTBOX ══ -->
