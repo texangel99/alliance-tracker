@@ -1399,7 +1399,8 @@ function unlockApp() {
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
 
-  // 1) Instant render from cached contacts (if any) for fast UX
+  // 1) Try to load cached contacts instantly for fast UX
+  let cacheLoaded = false;
   try {
     const cachedData = localStorage.getItem('at_contacts_cache_v1');
     if (cachedData) {
@@ -1409,14 +1410,38 @@ function unlockApp() {
         renderContacts();
         updateStatsRow();
         checkTodayFollowups();
+        cacheLoaded = true;
+        // Hide loading immediately since we have cached data
+        const loadingDiv = document.querySelector('#contactsList .loading');
+        if (loadingDiv) loadingDiv.style.display = 'none';
       }
     }
   } catch (e) {
     console.warn('Cache load failed:', e);
   }
   
-  // 2) Then refresh from Firestore in background
-  loadContacts();
+  // 2) If no cache loaded, show proper loading state
+  if (!cacheLoaded) {
+    // Ensure loading is visible if no cache
+    const loadingDiv = document.querySelector('#contactsList .loading');
+    if (loadingDiv) loadingDiv.style.display = 'block';
+  }
+
+  // 3) Then refresh from Firestore in background (with error handling)
+  loadContacts().catch(err => {
+    console.error('Firestore load failed:', err);
+    // If we have cache, keep using it. If not, show error message
+    if (!cacheLoaded) {
+      const contactsList = document.getElementById('contactsList');
+      contactsList.innerHTML = `
+        <div style="text-align: center; padding: 48px; color: var(--text3);">
+          <div style="font-size: 42px; margin-bottom: 12px;">⚠️</div>
+          <div style="font-size: 14px; margin-bottom: 8px;">Could not load. Check Firestore rules.</div>
+          <button onclick="loadContacts()" style="padding: 8px 16px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; cursor: pointer; font-size: 12px; margin-top: 8px;">Retry</button>
+        </div>
+      `;
+    }
+  });
 
   requestNotificationPermission();
   const t = localStorage.getItem('at_reminder_time');
