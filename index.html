@@ -1643,11 +1643,9 @@ function editCurrentContact() { closeDetail(); openEditModal(currentDetailId); }
 function clearForm() {
   ['fName','fPhone','fWP','fLocation','fFollowup','fComments'].forEach(id => document.getElementById(id).value='');
   delete document.getElementById('fWP').dataset.manualEdit;
-  currentPhotos = []; renderPhotoThumbs();
+  currentPhotos = []; renderPhotoThumbs(); // resets photo zone fully
   resetStatusChips();
   setThosam('na');
-  document.getElementById('photoPreview').style.display = 'none';
-  document.getElementById('photoUploadContent').style.display = 'block';
 }
 
 function closeModal() { document.getElementById('formModal').classList.remove('open'); }
