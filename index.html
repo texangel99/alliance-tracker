@@ -807,7 +807,7 @@ select.form-input { appearance: none; cursor: pointer; }
     💍 Alliance Tracker
     <div class="pin-brand-sub">by Mathiyarasan</div>
   </div>
-  <div class="pin-subtitle" id="pinSubtitle">Enter a PIN</div>
+  <div class="pin-subtitle" id="pinSubtitle">Loading...</div>
   <div class="pin-dots">
     <div class="pin-dot" id="d0"></div>
     <div class="pin-dot" id="d1"></div>
@@ -1211,6 +1211,29 @@ window._pinSet = async (pin) => {
 // localStorage = primary (works instantly on refresh, no network needed)
 // Firestore = backup token to validate it hasn't been remotely destroyed
 const SESSION_KEY = 'at_session_v2';
+const CONTACTS_CACHE_KEY = 'at_contacts_cache_v1';
+
+// Contacts cache helpers (trimmed for speed and to avoid large base64 images in localStorage)
+function _trimContactForCache(c) {
+  // exclude large photos arrays to keep cache small and fast
+  const { photos, photo, statusHistory, ...rest } = c || {};
+  return { ...rest, hasPhoto: !!photo };
+}
+function _cacheContacts(list) {
+  try { localStorage.setItem(CONTACTS_CACHE_KEY, JSON.stringify(list.map(_trimContactForCache))); } catch(_) {}
+}
+function _loadContactsFromCache() {
+  try {
+    const raw = localStorage.getItem(CONTACTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // bring back expected fields if missing
+    return Array.isArray(parsed) ? parsed.map(c => ({ photo: '', photos: [], statusHistory: [], ...c })) : [];
+  } catch(_) { return []; }
+}
+function _clearContactsCache() {
+  try { localStorage.removeItem(CONTACTS_CACHE_KEY); } catch(_) {}
+}
 
 window._sessionCreate = async () => {
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -1229,6 +1252,7 @@ window._sessionCheck = () => {
 
 window._sessionDestroy = async () => {
   localStorage.removeItem(SESSION_KEY);
+  _clearContactsCache(); // clear cached profiles for security when logging out/resetting
   try { await setDoc(doc(db, 'settings', 'session'), { token: '', ts: Date.now() }); }
   catch(e) {}
 };
@@ -1374,7 +1398,18 @@ function unlockApp() {
   // Show app, hide pin
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
+
+  // 1) Instant render from cached contacts (if any) for fast UX
+  const cached = typeof _loadContactsFromCache === 'function' ? _loadContactsFromCache() : [];
+  if (cached && cached.length) {
+    contacts = cached;
+    renderContacts();
+    updateStatsRow();
+    checkTodayFollowups();
+  }
+  // 2) Then refresh from Firestore in background
   loadContacts();
+
   requestNotificationPermission();
   const t = localStorage.getItem('at_reminder_time');
   if (t) scheduleReminder(t);
@@ -1467,6 +1502,8 @@ async function loadContacts() {
     renderContacts();
     updateStatsRow();
     checkTodayFollowups();
+    // Update local cache so subsequent refreshes are instant
+    if (typeof _cacheContacts === 'function') _cacheContacts(contacts);
     if (document.getElementById('dashScreen').classList.contains('visible')) updateDashboard();
   } catch(e) {
     console.error('loadContacts error:', e);
@@ -1809,6 +1846,9 @@ async function saveContact() {
     renderContacts();
     updateStatsRow();
     checkTodayFollowups();
+    // Keep cache in sync after add/edit
+    if (typeof _cacheContacts === 'function') _cacheContacts(contacts);
+
   } catch(e) {
     console.error(e);
     showToast('Error saving. Check connection.');
@@ -1884,6 +1924,8 @@ async function deleteCurrentContact() {
     closeDetail();
     renderContacts();
     updateStatsRow();
+    // Keep cache in sync after delete
+    if (typeof _cacheContacts === 'function') _cacheContacts(contacts);
     showToast('🗑️ Profile deleted!');
   } catch(e) { showToast('Error deleting.'); }
 }
@@ -2030,6 +2072,8 @@ async function doImport(e) {
       await window._addDoc(window._col('contacts'), c);
     }
     await loadContacts();
+    // Cache fresh data after import
+    if (typeof _cacheContacts === 'function') _cacheContacts(contacts);
     showToast(`✅ ${data.length} contacts imported!`);
   } catch(err) { showToast('Invalid backup file.'); }
 }
