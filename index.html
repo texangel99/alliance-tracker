@@ -8,6 +8,23 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Alliance Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script>
+// ── INSTANT session check — runs before ANYTHING else ──
+// If localStorage has a valid session, hide PIN screen and show app IMMEDIATELY.
+// No Firebase, no async, no network — zero delay.
+(function() {
+  if (localStorage.getItem('at_session_v2')) {
+    window._sessionPreApproved = true;
+    // Add class to <body> immediately — CSS hides pin, shows app before page even renders
+    document.documentElement.classList.add('session-ok');
+    // Move class to body once body exists (DOMContentLoaded is safe enough)
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.classList.add('session-ok');
+      document.documentElement.classList.remove('session-ok');
+    }, { once: true });
+  }
+})();
+</script>
 <style>
 /* ══════════════════════════════
    DESIGN TOKENS — DARK (default)
@@ -116,6 +133,11 @@ body {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 26px;
 }
+/* Hide pin screen instantly if session pre-approved — prevents flash */
+body.session-ok #pinScreen,
+html.session-ok #pinScreen { display: none !important; }
+body.session-ok #app,
+html.session-ok #app { display: flex !important; }
 #pinScreen::before {
   content: '';
   position: absolute; inset: 0; pointer-events: none;
@@ -785,7 +807,7 @@ select.form-input { appearance: none; cursor: pointer; }
     💍 Alliance Tracker
     <div class="pin-brand-sub">by Mathiyarasan</div>
   </div>
-  <div class="pin-subtitle" id="pinSubtitle">Loading...</div>
+  <div class="pin-subtitle" id="pinSubtitle">Enter a PIN</div>
   <div class="pin-dots">
     <div class="pin-dot" id="d0"></div>
     <div class="pin-dot" id="d1"></div>
@@ -1199,17 +1221,10 @@ window._sessionCreate = async () => {
   catch(e) { /* Firestore write optional — localStorage is enough */ }
 };
 
-window._sessionCheck = async () => {
-  const local = localStorage.getItem(SESSION_KEY);
-  if (!local) return false;
-  // localStorage token exists — valid session, skip PIN
-  // (Optionally verify against Firestore for remote-logout support)
-  try {
-    const snap = await getDoc(doc(db, 'settings', 'session'));
-    if (snap.exists() && snap.data().token === '') return false; // explicitly logged out
-    // If Firestore read fails or token matches, trust localStorage
-  } catch(e) { /* network error — trust localStorage */ }
-  return true;
+window._sessionCheck = () => {
+  // localStorage is the authority — no network call needed
+  // Session is destroyed on logout which removes this key
+  return !!localStorage.getItem(SESSION_KEY);
 };
 
 window._sessionDestroy = async () => {
@@ -1261,20 +1276,14 @@ let pinConfirmBuffer = '';
 let pinStep = 'loading';
 
 async function initPin() {
-  // Step 1: Check localStorage session instantly — no network call needed
-  const localToken = localStorage.getItem('at_session_v2');
-  if (localToken) {
-    // Has a local session — verify it hasn't been explicitly destroyed remotely
-    const sessionOk = await window._sessionCheck();
-    if (sessionOk) {
-      unlockApp();
-      return;
-    }
-    // Remote logout detected — clear local token and show PIN
-    localStorage.removeItem('at_session_v2');
+  // Session pre-approved by inline head script (localStorage check)
+  // Just load contacts and go — app is already visible via CSS
+  if (window._sessionPreApproved) {
+    unlockApp();
+    return;
   }
 
-  // Step 2: No session — load PIN from DB and show keypad
+  // No session — fetch PIN from Firestore and show keypad
   document.getElementById('pinSubtitle').textContent = 'Loading...';
   const savedPin = await window._pinLoad();
   if (!savedPin) {
@@ -1359,9 +1368,13 @@ function showPinError(msg) {
 }
 
 function unlockApp() {
+  // Remove helper CSS classes (no longer needed once JS takes over)
+  document.body.classList.remove('session-ok');
+  document.documentElement.classList.remove('session-ok');
+  // Show app, hide pin
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
-  loadContacts();  // load directly, not via event
+  loadContacts();
   requestNotificationPermission();
   const t = localStorage.getItem('at_reminder_time');
   if (t) scheduleReminder(t);
