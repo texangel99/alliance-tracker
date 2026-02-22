@@ -1134,7 +1134,7 @@ select.form-input { appearance: none; cursor: pointer; }
 <!-- ══ FIREBASE ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, serverTimestamp }
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -1151,7 +1151,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 window._db = db;
-window._serverTimestamp = serverTimestamp;
 window._col = collection;
 window._addDoc = addDoc;
 window._getDocs = getDocs;
@@ -1298,13 +1297,11 @@ function showPinError(msg) {
 }
 
 function unlockApp() {
-  // Store session token so refresh within same browser session skips PIN
   sessionStorage.setItem('at_unlocked', 'yes');
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
-  window.dispatchEvent(new Event('appReady'));
+  window.dispatchEvent(new Event('appReady')); // triggers loadContacts -> checkTodayFollowups
   requestNotificationPermission();
-  checkTodayFollowups();
   const t = localStorage.getItem('at_reminder_time');
   if (t) scheduleReminder(t);
   applyTheme(currentTheme);
@@ -1371,7 +1368,6 @@ let currentFilter = 'all';
 let currentSort = 'newest';
 let editingId = null;
 let currentDetailId = null;
-// currentPhoto is managed via defineProperty below
 let thosamVal = 'na';
 
 async function loadContacts() {
@@ -1383,6 +1379,8 @@ async function loadContacts() {
     renderContacts();
     updateStatsRow();
     checkTodayFollowups();
+    // If on dash already, update it too
+    if (document.getElementById('dashScreen').classList.contains('visible')) updateDashboard();
   } catch(e) {
     console.error(e);
     document.getElementById('contactsList').innerHTML =
@@ -1553,7 +1551,7 @@ function setSort(s) {
 // FORM
 // ══════════════════════════════
 function openAddModal() {
-  editingId = null; currentPhotos = [];
+  editingId = null;
   document.getElementById('formTitle').textContent = 'Add Profile';
   clearForm();
   document.getElementById('formModal').classList.add('open');
@@ -1578,14 +1576,6 @@ function openEditModal(id) {
   document.getElementById('fFollowup').value = c.followup || '';
   document.getElementById('fComments').value = c.comments || '';
   setThosam(c.thosam || 'na');
-  if (c.photo) {
-    document.getElementById('photoPreview').src = c.photo;
-    document.getElementById('photoPreview').style.display = 'block';
-    document.getElementById('photoUploadContent').style.display = 'none';
-  } else {
-    document.getElementById('photoPreview').style.display = 'none';
-    document.getElementById('photoUploadContent').style.display = 'block';
-  }
   document.getElementById('formModal').classList.add('open');
 }
 
@@ -1681,13 +1671,6 @@ function removePhoto(i) {
   renderPhotoThumbs();
 }
 
-// Legacy: currentPhoto still used for single-photo compat in save
-Object.defineProperty(window, 'currentPhoto', {
-  get() { return currentPhotos[0] || ''; },
-  set(v) { if (v) { currentPhotos = [v]; renderPhotoThumbs(); } else { currentPhotos = []; renderPhotoThumbs(); } },
-  configurable: true
-});
-
 async function saveContact() {
   const name  = document.getElementById('fName').value.trim();
   const phone = document.getElementById('fPhone').value.trim();
@@ -1711,8 +1694,7 @@ async function saveContact() {
     comments: document.getElementById('fComments').value.trim(),
     photos: [...currentPhotos],
     photo: currentPhotos[0] || '',
-    modifiedAt: window._serverTimestamp ? window._serverTimestamp() : Date.now(),
-    modifiedAtMs: Date.now()  // fallback for local sort before server resolves
+    modifiedAt: Date.now()
   };
 
   // Track status history if changed
@@ -1732,10 +1714,8 @@ async function saveContact() {
       if (idx !== -1) contacts[idx] = {...contacts[idx], ...data};
       showToast('✅ Profile updated!');
     } else {
-      data.createdAt = window._serverTimestamp ? window._serverTimestamp() : Date.now();
-      data.createdAtMs = Date.now();
-      data.modifiedAtMs = Date.now();
-      data.statusHistory = [{ from: null, to: data.statuses.join(' + '), at: Date.now() }];
+      data.createdAt = Date.now();
+      data.statusHistory = [{ from: null, to: (data.statuses||[]).join(' + '), at: Date.now() }];
       const ref = await window._addDoc(window._col(window._db, 'contacts'), data);
       contacts.unshift({ id: ref.id, ...data });
       showToast('✅ Profile added!');
