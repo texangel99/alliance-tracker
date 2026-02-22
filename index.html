@@ -1185,28 +1185,36 @@ window._pinSet = async (pin) => {
   catch(e) { console.error('PIN save error', e); }
 };
 
-// ── Server-side session store ──
-// Generates a random session token, writes to Firestore settings/session
-// On refresh, reads it back — if it matches localStorage, skip PIN
+// ── Session store ──
+// localStorage = primary (works instantly on refresh, no network needed)
+// Firestore = backup token to validate it hasn't been remotely destroyed
+const SESSION_KEY = 'at_session_v2';
+
 window._sessionCreate = async () => {
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  try {
-    await setDoc(doc(db, 'settings', 'session'), { token, ts: Date.now() });
-    localStorage.setItem('at_session', token);
-  } catch(e) { console.error('session create error', e); }
+  // Always write to localStorage first — this is what survives refresh
+  localStorage.setItem(SESSION_KEY, token);
+  // Also persist to Firestore for logout-from-another-device support
+  try { await setDoc(doc(db, 'settings', 'session'), { token, ts: Date.now() }); }
+  catch(e) { /* Firestore write optional — localStorage is enough */ }
 };
+
 window._sessionCheck = async () => {
-  const local = localStorage.getItem('at_session');
+  const local = localStorage.getItem(SESSION_KEY);
   if (!local) return false;
+  // localStorage token exists — valid session, skip PIN
+  // (Optionally verify against Firestore for remote-logout support)
   try {
     const snap = await getDoc(doc(db, 'settings', 'session'));
-    if (!snap.exists()) return false;
-    return snap.data().token === local;
-  } catch(e) { return false; }
+    if (snap.exists() && snap.data().token === '') return false; // explicitly logged out
+    // If Firestore read fails or token matches, trust localStorage
+  } catch(e) { /* network error — trust localStorage */ }
+  return true;
 };
+
 window._sessionDestroy = async () => {
-  localStorage.removeItem('at_session');
-  try { await setDoc(doc(db, 'settings', 'session'), { token: '', ts: 0 }); }
+  localStorage.removeItem(SESSION_KEY);
+  try { await setDoc(doc(db, 'settings', 'session'), { token: '', ts: Date.now() }); }
   catch(e) {}
 };
 
@@ -1253,14 +1261,21 @@ let pinConfirmBuffer = '';
 let pinStep = 'loading';
 
 async function initPin() {
-  document.getElementById('pinSubtitle').textContent = 'Checking session...';
-  // Check server-side session first — if valid, skip PIN entirely
-  const sessionOk = await window._sessionCheck();
-  if (sessionOk) {
-    const savedPin = await window._pinLoad();
-    if (savedPin) { unlockApp(); return; }
+  // Step 1: Check localStorage session instantly — no network call needed
+  const localToken = localStorage.getItem('at_session_v2');
+  if (localToken) {
+    // Has a local session — verify it hasn't been explicitly destroyed remotely
+    const sessionOk = await window._sessionCheck();
+    if (sessionOk) {
+      unlockApp();
+      return;
+    }
+    // Remote logout detected — clear local token and show PIN
+    localStorage.removeItem('at_session_v2');
   }
-  // No valid session — show PIN
+
+  // Step 2: No session — load PIN from DB and show keypad
+  document.getElementById('pinSubtitle').textContent = 'Loading...';
   const savedPin = await window._pinLoad();
   if (!savedPin) {
     pinStep = 'set1';
