@@ -366,6 +366,26 @@ select.form-input { appearance: none; cursor: pointer; }
 .loading { text-align: center; padding: 48px; color: var(--text3); font-size: 13px; }
 .spinner { width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* PULL TO REFRESH */
+.ptr-indicator {
+  text-align: center; padding: 0; height: 0; overflow: hidden;
+  color: var(--text3); font-size: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: height 0.2s ease, opacity 0.2s ease;
+  opacity: 0;
+}
+.ptr-indicator.pulling { height: 50px; opacity: 1; }
+.ptr-indicator.loading { height: 50px; opacity: 1; color: var(--accent); }
+.ptr-spinner {
+  width: 16px; height: 16px; border: 2px solid var(--border2);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.7s linear infinite; display: none;
+}
+.ptr-indicator.loading .ptr-spinner { display: block; }
+.ptr-arrow { font-size: 18px; transition: transform 0.2s; display: inline-block; }
+.ptr-indicator.ready .ptr-arrow { transform: rotate(180deg); }
+.ptr-indicator.loading .ptr-arrow { display: none; }
+
 </style>
 </head>
 <body>
@@ -380,15 +400,15 @@ select.form-input { appearance: none; cursor: pointer; }
   </div>
   <div class="pin-msg" id="pinMsg"></div>
   <div class="pin-grid">
-    <button class="pin-btn" onclick="pinInput('1')">1<span class="pin-btn-sub"></span></button>
-    <button class="pin-btn" onclick="pinInput('2')">2<span class="pin-btn-sub">ABC</span></button>
-    <button class="pin-btn" onclick="pinInput('3')">3<span class="pin-btn-sub">DEF</span></button>
-    <button class="pin-btn" onclick="pinInput('4')">4<span class="pin-btn-sub">GHI</span></button>
-    <button class="pin-btn" onclick="pinInput('5')">5<span class="pin-btn-sub">JKL</span></button>
-    <button class="pin-btn" onclick="pinInput('6')">6<span class="pin-btn-sub">MNO</span></button>
-    <button class="pin-btn" onclick="pinInput('7')">7<span class="pin-btn-sub">PQRS</span></button>
-    <button class="pin-btn" onclick="pinInput('8')">8<span class="pin-btn-sub">TUV</span></button>
-    <button class="pin-btn" onclick="pinInput('9')">9<span class="pin-btn-sub">WXYZ</span></button>
+    <button class="pin-btn" onclick="pinInput('1')">1</button>
+    <button class="pin-btn" onclick="pinInput('2')">2</button>
+    <button class="pin-btn" onclick="pinInput('3')">3</button>
+    <button class="pin-btn" onclick="pinInput('4')">4</button>
+    <button class="pin-btn" onclick="pinInput('5')">5</button>
+    <button class="pin-btn" onclick="pinInput('6')">6</button>
+    <button class="pin-btn" onclick="pinInput('7')">7</button>
+    <button class="pin-btn" onclick="pinInput('8')">8</button>
+    <button class="pin-btn" onclick="pinInput('9')">9</button>
     <button class="pin-btn empty"></button>
     <button class="pin-btn" onclick="pinInput('0')">0</button>
     <button class="pin-btn clear" onclick="pinBackspace()">⌫</button>
@@ -426,6 +446,11 @@ select.form-input { appearance: none; cursor: pointer; }
     <div class="followup-banner" id="followupBanner">
       <div class="followup-banner-title">📅 Today's Follow-ups</div>
       <div id="followupList"></div>
+    </div>
+    <div class="ptr-indicator" id="ptrIndicator">
+      <span class="ptr-arrow" id="ptrArrow">↓</span>
+      <div class="ptr-spinner"></div>
+      <span id="ptrText">Pull to refresh</span>
     </div>
     <div class="contacts-list" id="contactsList">
       <div class="loading"><div class="spinner"></div>Loading profiles...</div>
@@ -529,7 +554,7 @@ select.form-input { appearance: none; cursor: pointer; }
         <div class="settings-item-icon">💍</div>
         <div class="settings-item-text">
           <div class="settings-item-title">Alliance Tracker</div>
-          <div class="settings-item-sub">Version 2.1</div>
+          <div class="settings-item-sub">Version 2.1 • Developed by Mathiyarasan T</div>
         </div>
       </div>
     </div>
@@ -853,6 +878,7 @@ function showPinError(msg) {
 
 function unlockApp() {
   document.getElementById('pinScreen').style.display = 'none';
+  document.getElementById('app').style.display = '';  // clear inline style from logout
   document.getElementById('app').classList.add('visible');
   loadContacts();
   requestNotificationPermission();
@@ -863,9 +889,9 @@ function unlockApp() {
 
 async function logoutApp() {
   if (!confirm('Log out? PIN required on next open.')) return;
-  window._sessionDestroy(); // ← clears localStorage token
+  window._sessionDestroy();
 
-  // ── Clear ALL data from DOM so nothing is visible behind PIN screen ──
+  // Clear ALL data from DOM immediately
   contacts = [];
   document.getElementById('contactsList').innerHTML = '';
   document.getElementById('statsRow').innerHTML = '';
@@ -875,16 +901,30 @@ async function logoutApp() {
   document.getElementById('searchInput').value = '';
   document.getElementById('searchClear').classList.remove('show');
 
-  // Reset nav to home
+  // Reset nav to home screen
   showHome();
 
-  // Hide app, show PIN
+  // ── IMMEDIATELY hide app and show PIN — no refresh needed ──
   document.getElementById('app').classList.remove('visible');
+  document.getElementById('app').style.display = 'none';
   document.getElementById('pinScreen').style.display = 'flex';
+
+  // Reset PIN state
   pinBuffer = ''; pinConfirmBuffer = ''; updatePinDots();
   document.getElementById('pinMsg').textContent = '';
+  pinStep = 'enter';
 
-  await initPin();
+  // Load PIN from Firebase and show correct subtitle
+  const savedPin = await window._pinLoad();
+  if (!savedPin) {
+    pinStep = 'set1';
+    document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+    document.getElementById('pinResetLink').style.display = 'none';
+  } else {
+    pinStep = 'enter';
+    document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+    document.getElementById('pinResetLink').style.display = 'block';
+  }
 }
 
 async function resetPin() {
@@ -1138,6 +1178,13 @@ function removePhoto(i) { currentPhotos.splice(i,1); renderPhotoThumbs(); }
 async function saveContact() {
   const name=document.getElementById('fName').value.trim(), phone=document.getElementById('fPhone').value.trim();
   if(!name||!phone) { showToast('Name and Phone are required!'); return; }
+
+  // Duplicate phone check
+  const duplicate = contacts.find(c => c.phone === phone && c.id !== editingId);
+  if (duplicate) {
+    if (!confirm('This number already exists!\n\nName: ' + duplicate.name + '\nPhone: +91 ' + duplicate.phone + '\n\nSave anyway?')) return;
+  }
+
   const wpRaw=document.getElementById('fWP').value.trim(), wp=wpRaw||phone;
   const newStatuses=getSelectedStatuses();
   if(!newStatuses.length) { showToast('Select at least one status!'); return; }
@@ -1315,6 +1362,59 @@ function openLightboxFromDetail(imgEl) { const wrap=document.getElementById('det
   let startX=0; const lb=document.getElementById('lightbox');
   lb.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;},{passive:true});
   lb.addEventListener('touchend',e=>{ const dx=e.changedTouches[0].clientX-startX; if(Math.abs(dx)>50){e.stopPropagation();lightboxNav(dx<0?1:-1);}},{passive:true});
+})();
+
+
+// ══ PULL TO REFRESH ══
+(function initPTR() {
+  let startY = 0, currentY = 0, pulling = false, threshold = 70;
+  const indicator = document.getElementById('ptrIndicator');
+  const ptrText   = document.getElementById('ptrText');
+  const ptrArrow  = document.getElementById('ptrArrow');
+
+  document.getElementById('homeScreen').addEventListener('touchstart', e => {
+    // Only trigger if scrolled to top
+    const list = document.getElementById('contactsList');
+    if (window.scrollY > 5) return;
+    startY = e.touches[0].clientY;
+    pulling = true;
+  }, { passive: true });
+
+  document.getElementById('homeScreen').addEventListener('touchmove', e => {
+    if (!pulling) return;
+    currentY = e.touches[0].clientY;
+    const dist = Math.max(0, currentY - startY);
+    if (dist < 5) return;
+    const progress = Math.min(dist, threshold * 1.5);
+    indicator.style.height = Math.min(progress * 0.6, 55) + 'px';
+    indicator.style.opacity = Math.min(progress / 40, 1);
+    if (dist >= threshold) {
+      indicator.className = 'ptr-indicator ready';
+      ptrText.textContent = 'Release to refresh';
+    } else {
+      indicator.className = 'ptr-indicator pulling';
+      ptrText.textContent = 'Pull to refresh';
+    }
+  }, { passive: true });
+
+  document.getElementById('homeScreen').addEventListener('touchend', async () => {
+    if (!pulling) return;
+    pulling = false;
+    const dist = currentY - startY;
+    if (dist >= threshold) {
+      indicator.className = 'ptr-indicator loading';
+      indicator.style.height = '50px';
+      indicator.style.opacity = '1';
+      ptrText.textContent = 'Refreshing...';
+      await loadContacts();
+      showToast('✅ Refreshed!');
+    }
+    // Reset
+    indicator.style.height = '0';
+    indicator.style.opacity = '0';
+    setTimeout(() => { indicator.className = 'ptr-indicator'; ptrText.textContent = 'Pull to refresh'; }, 300);
+    startY = 0; currentY = 0;
+  }, { passive: true });
 })();
 
 // ══ INIT ══
