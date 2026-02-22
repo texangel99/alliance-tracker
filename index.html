@@ -1095,27 +1095,37 @@ applyTheme(currentTheme);
 let pinBuffer = '', pinConfirmBuffer = '', pinStep = 'loading';
 
 async function initPin() {
-  // ── KEY FIX: If session token exists in localStorage → skip PIN entirely ──
-  // This handles: page refresh, tab reopen, navigate back — all go straight to app.
-  // Only when session is destroyed (logout / reset) will PIN appear again.
+  // If session token exists → skip PIN entirely
   if (window._sessionExists()) {
     unlockApp();
     return;
   }
 
-  // No session — show PIN keypad
+  // ── Show keypad IMMEDIATELY — don't wait for Firebase ──
+  // User sees the keypad right away. PIN loads in background.
   document.getElementById('pinScreen').style.display = 'flex';
   document.getElementById('app').classList.remove('visible');
 
-  const savedPin = await window._pinLoad();
-  if (!savedPin) {
-    pinStep = 'set1';
-    document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
-    document.getElementById('pinResetLink').style.display = 'none';
-  } else {
-    pinStep = 'enter';
+  // Show keypad straight away in "enter" mode as default
+  // (handles 99% case — user already has a PIN)
+  pinStep = 'enter';
+  document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+  document.getElementById('pinResetLink').style.display = 'block';
+
+  // Load PIN from Firebase in background — update UI only if needed
+  try {
+    const savedPin = await window._pinLoad();
+    if (!savedPin) {
+      // First time — no PIN set yet
+      pinStep = 'set1';
+      document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+      document.getElementById('pinResetLink').style.display = 'none';
+    }
+    // else: already showing "Enter your PIN" — nothing to change
+  } catch(e) {
+    // Firebase failed — still let user try entering PIN
+    // processPIN will handle wrong PIN gracefully
     document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-    document.getElementById('pinResetLink').style.display = 'block';
   }
 }
 
