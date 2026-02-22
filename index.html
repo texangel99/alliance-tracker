@@ -1131,6 +1131,10 @@ window._pinSet = async (pin) => {
 };
 
 window.addEventListener('appReady', loadContacts);
+
+// ── Signal that Firebase is ready, then start PIN flow ──
+window._firebaseReady = true;
+window.dispatchEvent(new Event('firebaseReady'));
 </script>
 
 <script>
@@ -1818,9 +1822,13 @@ function showToast(msg) {
 }
 
 // ══════════════════════════════
-// INIT
+// INIT — wait for Firebase before PIN
 // ══════════════════════════════
-initPin();
+if (window._firebaseReady) {
+  initPin();
+} else {
+  window.addEventListener('firebaseReady', initPin, { once: true });
+}
 </script>
 </body>
 </html>
