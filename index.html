@@ -8,23 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Alliance Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script>
-// ── INSTANT session check — runs before ANYTHING else ──
-// If localStorage has a valid session, hide PIN screen and show app IMMEDIATELY.
-// No Firebase, no async, no network — zero delay.
-(function() {
-  if (localStorage.getItem('at_session_v2')) {
-    window._sessionPreApproved = true;
-    // Add class to <body> immediately — CSS hides pin, shows app before page even renders
-    document.documentElement.classList.add('session-ok');
-    // Move class to body once body exists (DOMContentLoaded is safe enough)
-    document.addEventListener('DOMContentLoaded', function() {
-      document.body.classList.add('session-ok');
-      document.documentElement.classList.remove('session-ok');
-    }, { once: true });
-  }
-})();
-</script>
+Tool call argument 'replace' pruned from message history.
 <style>
 /* ══════════════════════════════
    DESIGN TOKENS — DARK (default)
