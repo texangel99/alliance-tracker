@@ -1824,9 +1824,51 @@ function animateNumber(el, target) {
 }
 
 // ══ INIT ══
-// Wait for Firebase, then check session → show PIN or app
-if (window._firebaseReady) { initPin(); }
-else { window.addEventListener('firebaseReady', ()=>initPin(), { once:true }); }
+// Step 1: Show PIN keypad IMMEDIATELY — no waiting for Firebase at all
+// If session exists in localStorage → show app straight away (inline script already hid pin)
+// Otherwise → show keypad now, Firebase loads quietly in background
+
+(function showPinImmediately() {
+  // Session already active — app is already visible via inline head script
+  if (window._sessionPreApproved || localStorage.getItem('at_session_v2')) {
+    // Firebase not ready yet — wait for it then unlock
+    if (window._firebaseReady) {
+      unlockApp();
+    } else {
+      window.addEventListener('firebaseReady', () => unlockApp(), { once: true });
+    }
+    return;
+  }
+
+  // No session — show keypad RIGHT NOW without waiting for Firebase
+  document.getElementById('pinScreen').style.display = 'flex';
+  document.getElementById('app').classList.remove('visible');
+  pinStep = 'enter';
+  document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+  document.getElementById('pinResetLink').style.display = 'block';
+
+  // Firebase loads in background — update UI when ready
+  function onFirebaseReady() {
+    window._pinLoad().then(savedPin => {
+      if (!savedPin && pinStep !== 'set2') {
+        // First time user — switch to set PIN mode
+        pinStep = 'set1';
+        document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+        document.getElementById('pinResetLink').style.display = 'none';
+        pinBuffer = ''; updatePinDots();
+      }
+      // else: already showing "Enter your PIN" correctly — nothing to change
+    }).catch(() => {
+      // Firebase error — keep showing keypad, user can still try
+    });
+  }
+
+  if (window._firebaseReady) {
+    onFirebaseReady();
+  } else {
+    window.addEventListener('firebaseReady', onFirebaseReady, { once: true });
+  }
+})();
 </script>
 </body>
 </html>
