@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Alliance Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg2: #0f0f1a;
+  --surface: #13131f;
+  --surface2: #1a1a2e;
+  --surface3: #22223a;
+  --accent: #e8b86d;
+  --accent2: #f5d49a;
+  --accent3: #c49040;
+  --rose: #e87d7d;
+  --green: #5fb87a;
+  --blue: #6b9fe8;
+  --orange: #e8a05f;
+  --purple: #9b7de8;
+  --text: #f0ede8;
+  --text2: #b0a898;
+  --text3: #6a6560;
+  --border: #2a2a3e;
+  --border2: #3a3a50;
+  --radius: 14px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-size: 14px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ══════════════════════════════
+   PIN SCREEN
+══════════════════════════════ */
+#pinScreen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 28px;
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(232,184,109,0.08) 0%, transparent 60%);
+}
+.pin-brand {
+  text-align: center;
+  font-family: 'Cormorant Garamond', serif;
+  color: var(--accent);
+  font-size: 32px; font-weight: 600;
+  letter-spacing: 2px;
+}
+.pin-brand small { display: block; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400; color: var(--text3); letter-spacing: 4px; text-transform: uppercase; margin-top: 4px; }
+.pin-subtitle { font-size: 13px; color: var(--text3); }
+.pin-dots { display: flex; gap: 14px; }
+.pin-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border2);
+  transition: all 0.2s ease;
+}
+.pin-dot.filled { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(232,184,109,0.5); }
+.pin-dot.shake { animation: shake 0.4s ease; }
+.pin-grid {
+  display: grid; grid-template-columns: repeat(3, 68px);
+  gap: 10px;
+}
+.pin-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text); font-size: 20px; font-weight: 500;
+  cursor: pointer; transition: all 0.12s;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Sans', sans-serif;
+}
+.pin-btn:active { background: var(--accent); color: var(--bg); transform: scale(0.93); border-color: var(--accent); }
+.pin-btn.clear { background: transparent; color: var(--rose); border-color: transparent; font-size: 14px; }
+.pin-btn.empty { background: transparent; border: none; pointer-events: none; }
+.pin-msg { font-size: 12px; color: var(--rose); min-height: 16px; }
+.pin-reset { font-size: 12px; color: var(--text3); cursor: pointer; text-decoration: underline; margin-top: -10px; }
+
+@keyframes shake {
+  0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}
+}
+
+/* ══════════════════════════════
+   APP SHELL
+══════════════════════════════ */
+#app { display: none; flex-direction: column; min-height: 100vh; padding-bottom: 70px; }
+#app.visible { display: flex; }
+
+/* ── HEADER ── */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,15,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 10px;
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.app-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 600;
+  color: var(--accent); letter-spacing: 1px;
+}
+.header-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text2); font-size: 16px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.icon-btn:active { background: var(--accent); color: var(--bg); }
+.icon-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-size: 20px; font-weight: 600; }
+
+/* ── SEARCH & FILTER ── */
+.search-bar {
+  position: relative;
+}
+.search-bar input {
+  width: 100%; padding: 9px 12px 9px 36px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 13px;
+  font-family: 'DM Sans', sans-serif; outline: none;
+  transition: border-color 0.2s;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.search-bar input::placeholder { color: var(--text3); }
+.search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 14px; }
+
+.filter-sort-bar {
+  display: flex; gap: 8px; padding: 10px 16px 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filter-sort-bar::-webkit-scrollbar { display: none; }
+.filter-chip {
+  padding: 5px 12px; border-radius: 20px; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text2); font-size: 12px; cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.sort-btn {
+  padding: 5px 12px; border-radius: 20px; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text2); font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+}
+
+/* ── TODAY FOLLOWUP BANNER ── */
+.followup-banner {
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(232,184,109,0.12), rgba(232,184,109,0.04));
+  border: 1px solid rgba(232,184,109,0.3);
+  border-radius: var(--radius);
+  display: none;
+}
+.followup-banner.show { display: block; }
+.followup-banner-title { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+.followup-item { font-size: 12px; color: var(--text2); padding: 2px 0; cursor: pointer; }
+.followup-item:hover { color: var(--accent); }
+
+/* ── CONTACT CARDS ── */
+.contacts-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.contact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  animation: fadeIn 0.3s ease;
+}
+.contact-card:active { background: var(--surface2); }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.card-top { display: flex; gap: 12px; align-items: flex-start; }
+.card-photo {
+  width: 52px; height: 52px; border-radius: 12px;
+  object-fit: cover; background: var(--surface2);
+  border: 2px solid var(--border2);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--text3);
+  overflow: hidden;
+}
+.card-photo img { width: 100%; height: 100%; object-fit: cover; }
+.card-info { flex: 1; min-width: 0; }
+.card-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-phone { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.card-location { font-size: 11px; color: var(--text3); }
+.status-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+.status-rnr { background: rgba(232,184,109,0.15); color: var(--accent); }
+.status-nr { background: rgba(107,159,232,0.15); color: var(--blue); }
+.status-ps { background: rgba(95,184,122,0.15); color: var(--green); }
+.status-ni { background: rgba(232,125,125,0.15); color: var(--rose); }
+.thosam-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.thosam-yes { background: rgba(95,184,122,0.15); color: var(--green); }
+.thosam-no { background: rgba(232,125,125,0.15); color: var(--rose); }
+
+.card-dates { font-size: 10px; color: var(--text3); margin-top: 6px; display: flex; gap: 10px; }
+.card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.action-btn {
+  flex: 1; padding: 7px 4px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text2); font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+}
+.action-btn.call { color: var(--green); border-color: rgba(95,184,122,0.3); }
+.action-btn.whatsapp { color: #25d366; border-color: rgba(37,211,102,0.3); }
+.action-btn.edit { color: var(--accent); border-color: rgba(232,184,109,0.3); }
+.action-btn:active { opacity: 0.7; transform: scale(0.97); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text3); }
+.empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* ══════════════════════════════
+   BOTTOM NAV
+══════════════════════════════ */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(10,10,15,0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex; height: 62px;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px; cursor: pointer; color: var(--text3);
+  font-size: 10px; transition: all 0.15s;
+}
+.nav-item.active { color: var(--accent); }
+.nav-icon { font-size: 20px; }
+
+/* ══════════════════════════════
+   DASHBOARD SCREEN
+══════════════════════════════ */
+#dashScreen { display: none; padding: 16px; padding-bottom: 80px; }
+#dashScreen.visible { display: block; }
+.dash-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px; color: var(--accent); margin-bottom: 16px;
+}
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.dash-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  text-align: center;
+}
+.dash-num { font-size: 32px; font-weight: 700; font-family: 'Cormorant Garamond', serif; }
+.dash-label { font-size: 11px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.dash-card.total .dash-num { color: var(--accent); }
+.dash-card.spoke .dash-num { color: var(--green); }
+.dash-card.shared .dash-num { color: var(--blue); }
+.dash-card.ni .dash-num { color: var(--rose); }
+.dash-card.rnr .dash-num { color: var(--orange); }
+.dash-card.today .dash-num { color: var(--purple); }
+
+/* ══════════════════════════════
+   MODAL / FORM
+══════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  display: none; align-items: flex-end;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  width: 100%; background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  max-height: 92vh; overflow-y: auto;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 12px auto 16px; }
+.modal-header { padding: 0 16px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.modal-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--accent); }
+.modal-close { width: 30px; height: 30px; border-radius: 8px; background: var(--surface2); border: none; color: var(--text3); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.modal-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+.form-input {
+  padding: 10px 12px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-size: 14px; font-family: 'DM Sans', sans-serif;
+  outline: none; transition: border-color 0.2s; width: 100%;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text3); }
+textarea.form-input { resize: none; height: 80px; }
+select.form-input { appearance: none; cursor: pointer; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wp-hint { font-size: 11px; color: var(--text3); margin-top: -2px; }
+
+.toggle-group { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.toggle-opt {
+  flex: 1; padding: 9px; text-align: center; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text3);
+  background: var(--surface2); transition: all 0.15s;
+  border: none; font-family: 'DM Sans', sans-serif;
+}
+.toggle-opt.active-yes { background: rgba(95,184,122,0.2); color: var(--green); }
+.toggle-opt.active-no { background: rgba(232,125,125,0.2); color: var(--rose); }
+
+.photo-upload {
+  border: 2px dashed var(--border2); border-radius: 12px;
+  padding: 20px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s; position: relative;
+}
+.photo-upload:hover { border-color: var(--accent); }
+.photo-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.photo-preview { width: 80px; height: 80px; border-radius: 12px; object-fit: cover; display: none; margin: 0 auto 8px; }
+.photo-upload-text { font-size: 13px; color: var(--text3); }
+.photo-upload-icon { font-size: 28px; margin-bottom: 6px; }
+
+.form-actions { display: flex; gap: 10px; padding-top: 4px; }
+.btn {
+  flex: 1; padding: 12px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; border: none;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: var(--bg); }
+.btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+.btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+
+/* ══════════════════════════════
+   DETAIL VIEW
+══════════════════════════════ */
+#detailScreen { display: none; position: fixed; inset: 0; z-index: 200; background: var(--bg); overflow-y: auto; padding-bottom: 30px; }
+#detailScreen.visible { display: block; }
+.detail-header { padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.back-btn { width: 36px; height: 36px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.detail-header-title { flex: 1; font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--accent); }
+.detail-photo-area { padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.detail-photo { width: 100px; height: 100px; border-radius: 20px; object-fit: cover; background: var(--surface2); border: 3px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 44px; color: var(--text3); overflow: hidden; }
+.detail-photo img { width: 100%; height: 100%; object-fit: cover; }
+.detail-name { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; color: var(--text); }
+.detail-status-row { display: flex; gap: 8px; }
+.detail-body { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+.detail-row {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.detail-row-icon { font-size: 18px; width: 24px; text-align: center; }
+.detail-row-content { flex: 1; }
+.detail-row-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.detail-row-value { font-size: 14px; color: var(--text); }
+.detail-action-row { display: flex; gap: 10px; margin-top: 4px; }
+.detail-action-btn {
+  flex: 1; padding: 13px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text2); font-size: 13px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+}
+.detail-action-btn.call { background: rgba(95,184,122,0.12); color: var(--green); border-color: rgba(95,184,122,0.3); }
+.detail-action-btn.whatsapp { background: rgba(37,211,102,0.12); color: #25d366; border-color: rgba(37,211,102,0.3); }
+.detail-action-btn:active { opacity: 0.7; transform: scale(0.97); }
+.delete-btn { width: 100%; padding: 12px; margin-top: 8px; border-radius: 12px; background: rgba(232,125,125,0.1); border: 1px solid rgba(232,125,125,0.3); color: var(--rose); font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+/* ══════════════════════════════
+   SETTINGS SCREEN
+══════════════════════════════ */
+#settingsScreen { display: none; padding: 16px; padding-bottom: 80px; }
+#settingsScreen.visible { display: block; }
+.settings-title { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: var(--accent); margin-bottom: 16px; }
+.settings-section { margin-bottom: 20px; }
+.settings-section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-weight: 600; }
+.settings-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px; cursor: pointer;
+  transition: background 0.15s;
+}
+.settings-item:active { background: var(--surface2); }
+.settings-item-icon { font-size: 20px; width: 28px; text-align: center; }
+.settings-item-text { flex: 1; }
+.settings-item-title { font-size: 14px; color: var(--text); }
+.settings-item-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.settings-item-arrow { color: var(--text3); font-size: 16px; }
+
+.time-picker-row { display: flex; align-items: center; gap: 10px; }
+.time-picker-row input[type="time"] {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); padding: 8px 12px;
+  font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none;
+}
+.save-time-btn {
+  padding: 8px 16px; background: var(--accent); color: var(--bg);
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: 'DM Sans', sans-serif;
+}
+
+/* ══════════════════════════════
+   SORT MODAL
+══════════════════════════════ */
+.sort-modal {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.7); display: none; align-items: flex-end;
+}
+.sort-modal.open { display: flex; }
+.sort-panel {
+  width: 100%; background: var(--surface); border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border); padding: 16px;
+  animation: slideUp 0.25s ease;
+}
+.sort-option {
+  padding: 13px 16px; border-radius: 10px; cursor: pointer;
+  font-size: 14px; color: var(--text2); transition: all 0.12s;
+  display: flex; align-items: center; gap: 10px;
+}
+.sort-option:active { background: var(--surface2); }
+.sort-option.selected { color: var(--accent); font-weight: 600; }
+.sort-option .sort-icon { font-size: 16px; width: 24px; }
+
+/* ══════════════════════════════
+   TOAST
+══════════════════════════════ */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--surface3); border: 1px solid var(--border2);
+  color: var(--text); padding: 10px 20px; border-radius: 20px;
+  font-size: 13px; z-index: 9000; opacity: 0;
+  transition: all 0.3s; pointer-events: none; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ══════════════════════════════
+   LOADING
+══════════════════════════════ */
+.loading { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+.spinner { width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ══ PIN SCREEN ══ -->
+<div id="pinScreen">
+  <div class="pin-brand">
+    <span>💍</span>
+    Alliance Tracker
+    <small>by Mathiyarasan</small>
+  </div>
+  <div class="pin-subtitle" id="pinSubtitle">Enter your PIN</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-msg" id="pinMsg"></div>
+  <div class="pin-grid">
+    <button class="pin-btn" onclick="pinInput('1')">1</button>
+    <button class="pin-btn" onclick="pinInput('2')">2</button>
+    <button class="pin-btn" onclick="pinInput('3')">3</button>
+    <button class="pin-btn" onclick="pinInput('4')">4</button>
+    <button class="pin-btn" onclick="pinInput('5')">5</button>
+    <button class="pin-btn" onclick="pinInput('6')">6</button>
+    <button class="pin-btn" onclick="pinInput('7')">7</button>
+    <button class="pin-btn" onclick="pinInput('8')">8</button>
+    <button class="pin-btn" onclick="pinInput('9')">9</button>
+    <button class="pin-btn empty"></button>
+    <button class="pin-btn" onclick="pinInput('0')">0</button>
+    <button class="pin-btn clear" onclick="pinBackspace()">⌫</button>
+  </div>
+  <div class="pin-reset" id="pinResetLink" onclick="resetPin()" style="display:none">Forgot PIN? Reset</div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app">
+
+  <!-- HOME SCREEN -->
+  <div id="homeScreen">
+    <div class="header">
+      <div class="header-top">
+        <div class="app-title">💍 Alliance Tracker</div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="showDash()" title="Dashboard">📊</button>
+          <button class="icon-btn primary" onclick="openAddModal()" title="Add">+</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search by name or phone..." oninput="filterContacts()">
+      </div>
+    </div>
+
+    <div class="filter-sort-bar" id="filterBar">
+      <div class="filter-chip active" onclick="setFilter('all', this)">All</div>
+      <div class="filter-chip" onclick="setFilter('RNR', this)">RNR</div>
+      <div class="filter-chip" onclick="setFilter('Not Reachable', this)">Not Reachable</div>
+      <div class="filter-chip" onclick="setFilter('Profile Shared', this)">Profile Shared</div>
+      <div class="filter-chip" onclick="setFilter('Not Interested', this)">Not Interested</div>
+      <div class="sort-btn" onclick="openSortModal()">⇅ Sort</div>
+    </div>
+
+    <div class="followup-banner" id="followupBanner">
+      <div class="followup-banner-title">📅 Today's Follow-ups</div>
+      <div id="followupList"></div>
+    </div>
+
+    <div class="contacts-list" id="contactsList">
+      <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div id="dashScreen">
+    <div class="dash-title">📊 Dashboard</div>
+    <div class="dash-grid">
+      <div class="dash-card total"><div class="dash-num" id="dTotal">0</div><div class="dash-label">Total Profiles</div></div>
+      <div class="dash-card spoke"><div class="dash-num" id="dSpoke">0</div><div class="dash-label">Profile Shared</div></div>
+      <div class="dash-card rnr"><div class="dash-num" id="dRNR">0</div><div class="dash-label">RNR</div></div>
+      <div class="dash-card shared"><div class="dash-num" id="dNR">0</div><div class="dash-label">Not Reachable</div></div>
+      <div class="dash-card ni"><div class="dash-num" id="dNI">0</div><div class="dash-label">Not Interested</div></div>
+      <div class="dash-card today"><div class="dash-num" id="dToday">0</div><div class="dash-label">Follow-up Today</div></div>
+    </div>
+    <div class="dash-card" style="text-align:left; padding:16px;">
+      <div style="font-size:12px; color:var(--text3); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Recent Activity</div>
+      <div id="recentList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS SCREEN -->
+  <div id="settingsScreen">
+    <div class="settings-title">⚙️ Settings</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Reminders</div>
+      <div class="settings-item">
+        <div class="settings-item-icon">🔔</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Daily Reminder Time</div>
+          <div class="settings-item-sub">Get notified about today's follow-ups</div>
+          <div class="time-picker-row" style="margin-top:8px;">
+            <input type="time" id="reminderTime" value="09:00">
+            <button class="save-time-btn" onclick="saveReminderTime()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Security</div>
+      <div class="settings-item" onclick="changePIN()">
+        <div class="settings-item-icon">🔐</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Change PIN</div>
+          <div class="settings-item-sub">Update your 4-digit PIN</div>
+        </div>
+        <div class="settings-item-arrow">›</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Data</div>
+      <div class="settings-item" onclick="exportCSV()">
+        <div class="settings-item-icon">📤</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Export to CSV</div>
+          <div class="settings-item-sub">Download all contacts as spreadsheet</div>
+        </div>
+        <div class="settings-item-arrow">›</div>
+      </div>
+      <div class="settings-item" onclick="exportJSON()">
+        <div class="settings-item-icon">💾</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Backup Data</div>
+          <div class="settings-item-sub">Export all data as JSON backup</div>
+        </div>
+        <div class="settings-item-arrow">›</div>
+      </div>
+      <div class="settings-item" onclick="importJSON()">
+        <div class="settings-item-icon">📥</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Restore Data</div>
+          <div class="settings-item-sub">Import from JSON backup file</div>
+        </div>
+        <div class="settings-item-arrow">›</div>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="doImport(event)">
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">About</div>
+      <div class="settings-item">
+        <div class="settings-item-icon">💍</div>
+        <div class="settings-item-text">
+          <div class="settings-item-title">Alliance Tracker</div>
+          <div class="settings-item-sub">Version 1.0 • Built for Mathiyarasan</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-home" onclick="showHome()">
+      <div class="nav-icon">🏠</div>
+      <div>Home</div>
+    </div>
+    <div class="nav-item" id="nav-dash" onclick="showDash()">
+      <div class="nav-icon">📊</div>
+      <div>Dashboard</div>
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="showSettings()">
+      <div class="nav-icon">⚙️</div>
+      <div>Settings</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DETAIL SCREEN ══ -->
+<div id="detailScreen">
+  <div class="detail-header">
+    <button class="back-btn" onclick="closeDetail()">‹</button>
+    <div class="detail-header-title">Profile</div>
+    <button class="icon-btn" onclick="editCurrentContact()">✏️</button>
+  </div>
+  <div class="detail-photo-area">
+    <div class="detail-photo" id="detailPhoto">👤</div>
+    <div class="detail-name" id="detailName"></div>
+    <div class="detail-status-row" id="detailStatusRow"></div>
+  </div>
+  <div class="detail-body">
+    <div class="detail-action-row">
+      <button class="detail-action-btn call" id="detailCallBtn">📞 Call</button>
+      <button class="detail-action-btn whatsapp" id="detailWABtn">💬 WhatsApp</button>
+    </div>
+    <div class="detail-row"><div class="detail-row-icon">📞</div><div class="detail-row-content"><div class="detail-row-label">Phone</div><div class="detail-row-value" id="detailPhone"></div></div></div>
+    <div class="detail-row"><div class="detail-row-icon">💬</div><div class="detail-row-content"><div class="detail-row-label">WhatsApp</div><div class="detail-row-value" id="detailWA"></div></div></div>
+    <div class="detail-row"><div class="detail-row-icon">📍</div><div class="detail-row-content"><div class="detail-row-label">Location</div><div class="detail-row-value" id="detailLocation"></div></div></div>
+    <div class="detail-row" id="detailFollowupRow"><div class="detail-row-icon">📅</div><div class="detail-row-content"><div class="detail-row-label">Follow-up Date</div><div class="detail-row-value" id="detailFollowup"></div></div></div>
+    <div class="detail-row"><div class="detail-row-icon">💬</div><div class="detail-row-content"><div class="detail-row-label">Comments</div><div class="detail-row-value" id="detailComments"></div></div></div>
+    <div class="detail-row"><div class="detail-row-icon">🗓️</div><div class="detail-row-content"><div class="detail-row-label">Added</div><div class="detail-row-value" id="detailCreated"></div></div></div>
+    <div class="detail-row"><div class="detail-row-icon">✏️</div><div class="detail-row-content"><div class="detail-row-label">Last Modified</div><div class="detail-row-value" id="detailModified"></div></div></div>
+    <button class="delete-btn" onclick="deleteCurrentContact()">🗑️ Delete Contact</button>
+  </div>
+</div>
+
+<!-- ══ ADD/EDIT MODAL ══ -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="formTitle">Add Profile</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Profile Photo</label>
+        <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+          <input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">
+          <img class="photo-preview" id="photoPreview">
+          <div id="photoUploadContent">
+            <div class="photo-upload-icon">📷</div>
+            <div class="photo-upload-text">Tap to upload photo</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" id="fName" class="form-input" placeholder="Enter name">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone *</label>
+          <input type="tel" id="fPhone" class="form-input" placeholder="+91..." oninput="autoFillWP()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">WhatsApp</label>
+          <input type="tel" id="fWP" class="form-input" placeholder="Auto-fill">
+          <div class="wp-hint">Auto-fills from phone</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <input type="text" id="fLocation" class="form-input" placeholder="City / Area">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="fStatus" class="form-input">
+          <option value="RNR">RNR (Ring No Response)</option>
+          <option value="Not Reachable">Not Reachable</option>
+          <option value="Profile Shared">Profile Shared</option>
+          <option value="Not Interested">Not Interested</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Thosam</label>
+        <div class="toggle-group">
+          <button class="toggle-opt" id="tosYes" onclick="setThosam('yes')">✅ Yes</button>
+          <button class="toggle-opt" id="tosNo" onclick="setThosam('no')">❌ No</button>
+          <button class="toggle-opt active-yes" id="tosNA" onclick="setThosam('na')">— N/A</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Follow-up Date</label>
+        <input type="date" id="fFollowup" class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Comments</label>
+        <textarea id="fComments" class="form-input" placeholder="Notes about this profile..."></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveContact()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SORT MODAL ══ -->
+<div class="sort-modal" id="sortModal" onclick="closeSortModal(event)">
+  <div class="sort-panel">
+    <div style="font-size:13px; color:var(--text3); margin-bottom:10px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Sort By</div>
+    <div class="sort-option" onclick="setSort('newest')"><span class="sort-icon">🆕</span> Newest Added First</div>
+    <div class="sort-option" onclick="setSort('oldest')"><span class="sort-icon">📅</span> Oldest Added First</div>
+    <div class="sort-option" onclick="setSort('modified')"><span class="sort-icon">✏️</span> Recently Modified</div>
+    <div class="sort-option" onclick="setSort('nameAZ')"><span class="sort-icon">🔤</span> Name A → Z</div>
+    <div class="sort-option" onclick="setSort('nameZA')"><span class="sort-icon">🔤</span> Name Z → A</div>
+    <div class="sort-option" onclick="setSort('status')"><span class="sort-icon">🏷️</span> By Status</div>
+    <div class="sort-option" onclick="setSort('followup')"><span class="sort-icon">📅</span> Follow-up Date</div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast"></div>
+
+<!-- ══ FIREBASE ══ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCNw-IFfCieRgtKlsTWYbS8Eenc7qiuLcs",
+  authDomain: "alliancetracker-34985.firebaseapp.com",
+  projectId: "alliancetracker-34985",
+  storageBucket: "alliancetracker-34985.firebasestorage.app",
+  messagingSenderId: "773512863757",
+  appId: "1:773512863757:web:11aaae2a28c73da91fb544",
+  measurementId: "G-G7FQRYDXEH"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Expose DB functions globally
+window._db = db;
+window._col = collection;
+window._addDoc = addDoc;
+window._getDocs = getDocs;
+window._doc = doc;
+window._updateDoc = updateDoc;
+window._deleteDoc = deleteDoc;
+window._query = query;
+window._orderBy = orderBy;
+
+// Load contacts on init
+window.addEventListener('appReady', loadContacts);
+</script>
+
+<script>
+// ══════════════════════════════
+// PIN LOGIC
+// ══════════════════════════════
+let pinBuffer = '';
+let isSettingPin = false;
+let pinConfirmBuffer = '';
+let pinStep = 'enter'; // 'enter' | 'set1' | 'set2'
+
+function initPin() {
+  const savedPin = localStorage.getItem('at_pin');
+  if (!savedPin) {
+    pinStep = 'set1';
+    document.getElementById('pinSubtitle').textContent = 'Set a new 4-digit PIN';
+    document.getElementById('pinResetLink').style.display = 'none';
+  } else {
+    pinStep = 'enter';
+    document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+    document.getElementById('pinResetLink').style.display = 'block';
+  }
+}
+
+function pinInput(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updatePinDots();
+  if (pinBuffer.length === 4) {
+    setTimeout(() => processPIN(), 200);
+  }
+}
+
+function pinBackspace() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updatePinDots();
+  document.getElementById('pinMsg').textContent = '';
+}
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('d' + i);
+    dot.classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+function processPIN() {
+  if (pinStep === 'set1') {
+    pinConfirmBuffer = pinBuffer;
+    pinBuffer = '';
+    updatePinDots();
+    pinStep = 'set2';
+    document.getElementById('pinSubtitle').textContent = 'Confirm your PIN';
+    document.getElementById('pinMsg').textContent = '';
+    return;
+  }
+  if (pinStep === 'set2') {
+    if (pinBuffer === pinConfirmBuffer) {
+      localStorage.setItem('at_pin', pinBuffer);
+      unlockApp();
+    } else {
+      showPinError('PINs do not match. Try again.');
+      pinStep = 'set1';
+      pinConfirmBuffer = '';
+      document.getElementById('pinSubtitle').textContent = 'Set a new 4-digit PIN';
+    }
+    return;
+  }
+  // enter mode
+  const saved = localStorage.getItem('at_pin');
+  if (pinBuffer === saved) {
+    unlockApp();
+  } else {
+    showPinError('Wrong PIN. Try again.');
+  }
+}
+
+function showPinError(msg) {
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('pinMsg').textContent = msg;
+  document.querySelectorAll('.pin-dot').forEach(d => {
+    d.classList.add('shake');
+    setTimeout(() => d.classList.remove('shake'), 400);
+  });
+}
+
+function unlockApp() {
+  document.getElementById('pinScreen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  window.dispatchEvent(new Event('appReady'));
+  requestNotificationPermission();
+  checkTodayFollowups();
+}
+
+function resetPin() {
+  if (confirm('Reset PIN? You will need to set a new one.')) {
+    localStorage.removeItem('at_pin');
+    pinBuffer = '';
+    updatePinDots();
+    initPin();
+  }
+}
+
+function changePIN() {
+  localStorage.removeItem('at_pin');
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('pinScreen').style.display = 'flex';
+  pinBuffer = '';
+  updatePinDots();
+  initPin();
+}
+
+// ══════════════════════════════
+// NAVIGATION
+// ══════════════════════════════
+function showHome() {
+  document.getElementById('homeScreen').style.display = 'block';
+  document.getElementById('dashScreen').classList.remove('visible');
+  document.getElementById('settingsScreen').classList.remove('visible');
+  setNavActive('home');
+}
+function showDash() {
+  document.getElementById('homeScreen').style.display = 'none';
+  document.getElementById('dashScreen').classList.add('visible');
+  document.getElementById('settingsScreen').classList.remove('visible');
+  setNavActive('dash');
+  updateDashboard();
+}
+function showSettings() {
+  document.getElementById('homeScreen').style.display = 'none';
+  document.getElementById('dashScreen').classList.remove('visible');
+  document.getElementById('settingsScreen').classList.add('visible');
+  setNavActive('settings');
+  const saved = localStorage.getItem('at_reminder_time');
+  if (saved) document.getElementById('reminderTime').value = saved;
+}
+function setNavActive(id) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-' + id)?.classList.add('active');
+}
+
+// ══════════════════════════════
+// CONTACTS DATA
+// ══════════════════════════════
+let contacts = [];
+let currentFilter = 'all';
+let currentSort = 'newest';
+let editingId = null;
+let currentDetailId = null;
+let currentPhoto = '';
+
+async function loadContacts() {
+  try {
+    const q = window._query(window._col(window._db, 'contacts'), window._orderBy('createdAt', 'desc'));
+    const snap = await window._getDocs(q);
+    contacts = [];
+    snap.forEach(d => contacts.push({ id: d.id, ...d.data() }));
+    renderContacts();
+    checkTodayFollowups();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('contactsList').innerHTML = '<div class="empty-state"><div class="emoji">⚠️</div><p>Could not load. Check Firestore rules.</p></div>';
+  }
+}
+
+function renderContacts() {
+  let list = [...contacts];
+
+  // Filter
+  if (currentFilter !== 'all') list = list.filter(c => c.status === currentFilter);
+
+  // Search
+  const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+  if (q) list = list.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
+
+  // Sort
+  list.sort((a, b) => {
+    if (currentSort === 'newest') return (b.createdAt || 0) - (a.createdAt || 0);
+    if (currentSort === 'oldest') return (a.createdAt || 0) - (b.createdAt || 0);
+    if (currentSort === 'modified') return (b.modifiedAt || 0) - (a.modifiedAt || 0);
+    if (currentSort === 'nameAZ') return (a.name || '').localeCompare(b.name || '');
+    if (currentSort === 'nameZA') return (b.name || '').localeCompare(a.name || '');
+    if (currentSort === 'status') return (a.status || '').localeCompare(b.status || '');
+    if (currentSort === 'followup') return (a.followup || '').localeCompare(b.followup || '');
+    return 0;
+  });
+
+  const el = document.getElementById('contactsList');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="emoji">💍</div><p>No profiles found.<br>Tap + to add one!</p></div>';
+    return;
+  }
+
+  el.innerHTML = list.map(c => renderCard(c)).join('');
+}
+
+function renderCard(c) {
+  const statusClass = { 'RNR': 'status-rnr', 'Not Reachable': 'status-nr', 'Profile Shared': 'status-ps', 'Not Interested': 'status-ni' }[c.status] || 'status-rnr';
+  const thosamBadge = c.thosam === 'yes' ? '<span class="thosam-badge thosam-yes">Thosam ✅</span>' : c.thosam === 'no' ? '<span class="thosam-badge thosam-no">Thosam ❌</span>' : '';
+  const photoHtml = c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">` : '👤';
+  const createdStr = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '';
+  const modStr = c.modifiedAt ? new Date(c.modifiedAt).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '';
+
+  return `<div class="contact-card" onclick="openDetail('${c.id}')">
+    <div class="card-top">
+      <div class="card-photo">${photoHtml}</div>
+      <div class="card-info">
+        <div class="card-name">${c.name || 'Unknown'}</div>
+        <div class="card-phone">📞 ${c.phone || '-'}</div>
+        <div class="card-meta">
+          ${c.location ? `<span class="card-location">📍 ${c.location}</span>` : ''}
+          <span class="status-badge ${statusClass}">${c.status}</span>
+          ${thosamBadge}
+        </div>
+      </div>
+    </div>
+    <div class="card-dates">
+      <span>Added: ${createdStr}</span>
+      ${modStr ? `<span>Modified: ${modStr}</span>` : ''}
+      ${c.followup ? `<span>📅 ${c.followup}</span>` : ''}
+    </div>
+    <div class="card-actions" onclick="event.stopPropagation()">
+      <button class="action-btn call" onclick="callContact('${c.phone}')">📞 Call</button>
+      <button class="action-btn whatsapp" onclick="waContact('${c.wp || c.phone}')">💬 WA</button>
+      <button class="action-btn edit" onclick="openEditModal('${c.id}')">✏️ Edit</button>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════
+// FILTER / SORT
+// ══════════════════════════════
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderContacts();
+}
+function filterContacts() { renderContacts(); }
+
+function openSortModal() { document.getElementById('sortModal').classList.add('open'); }
+function closeSortModal(e) { if (e.target === document.getElementById('sortModal')) document.getElementById('sortModal').classList.remove('open'); }
+function setSort(s) {
+  currentSort = s;
+  document.getElementById('sortModal').classList.remove('open');
+  renderContacts();
+  showToast('Sorted!');
+}
+
+// ══════════════════════════════
+// ADD / EDIT FORM
+// ══════════════════════════════
+let thosamVal = 'na';
+
+function openAddModal() {
+  editingId = null;
+  currentPhoto = '';
+  document.getElementById('formTitle').textContent = 'Add Profile';
+  clearForm();
+  document.getElementById('formModal').classList.add('open');
+}
+
+function openEditModal(id) {
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  editingId = id;
+  currentPhoto = c.photo || '';
+  document.getElementById('formTitle').textContent = 'Edit Profile';
+  document.getElementById('fName').value = c.name || '';
+  document.getElementById('fPhone').value = c.phone || '';
+  document.getElementById('fWP').value = c.wp || '';
+  document.getElementById('fLocation').value = c.location || '';
+  document.getElementById('fStatus').value = c.status || 'RNR';
+  document.getElementById('fFollowup').value = c.followup || '';
+  document.getElementById('fComments').value = c.comments || '';
+  setThosam(c.thosam || 'na');
+
+  if (c.photo) {
+    const prev = document.getElementById('photoPreview');
+    prev.src = c.photo; prev.style.display = 'block';
+    document.getElementById('photoUploadContent').style.display = 'none';
+  } else {
+    document.getElementById('photoPreview').style.display = 'none';
+    document.getElementById('photoUploadContent').style.display = 'block';
+  }
+
+  document.getElementById('formModal').classList.add('open');
+}
+
+function editCurrentContact() {
+  closeDetail();
+  openEditModal(currentDetailId);
+}
+
+function clearForm() {
+  ['fName','fPhone','fWP','fLocation','fFollowup','fComments'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fStatus').value = 'RNR';
+  setThosam('na');
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('photoUploadContent').style.display = 'block';
+  currentPhoto = '';
+}
+
+function closeModal() { document.getElementById('formModal').classList.remove('open'); }
+
+function autoFillWP() {
+  const wp = document.getElementById('fWP');
+  if (!wp.value) wp.value = document.getElementById('fPhone').value;
+}
+
+function setThosam(val) {
+  thosamVal = val;
+  document.getElementById('tosYes').className = 'toggle-opt' + (val === 'yes' ? ' active-yes' : '');
+  document.getElementById('tosNo').className = 'toggle-opt' + (val === 'no' ? ' active-no' : '');
+  document.getElementById('tosNA').className = 'toggle-opt' + (val === 'na' ? ' active-yes' : '');
+}
+
+function handlePhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentPhoto = ev.target.result;
+    const prev = document.getElementById('photoPreview');
+    prev.src = currentPhoto; prev.style.display = 'block';
+    document.getElementById('photoUploadContent').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveContact() {
+  const name = document.getElementById('fName').value.trim();
+  const phone = document.getElementById('fPhone').value.trim();
+  if (!name || !phone) { showToast('Name and Phone are required!'); return; }
+
+  const wp = document.getElementById('fWP').value.trim() || phone;
+  const data = {
+    name, phone, wp,
+    location: document.getElementById('fLocation').value.trim(),
+    status: document.getElementById('fStatus').value,
+    thosam: thosamVal,
+    followup: document.getElementById('fFollowup').value,
+    comments: document.getElementById('fComments').value.trim(),
+    photo: currentPhoto,
+    modifiedAt: Date.now()
+  };
+
+  try {
+    if (editingId) {
+      await window._updateDoc(window._doc(window._db, 'contacts', editingId), data);
+      const idx = contacts.findIndex(c => c.id === editingId);
+      if (idx !== -1) contacts[idx] = { ...contacts[idx], ...data };
+      showToast('Profile updated!');
+    } else {
+      data.createdAt = Date.now();
+      const ref = await window._addDoc(window._col(window._db, 'contacts'), data);
+      contacts.unshift({ id: ref.id, ...data });
+      showToast('Profile added!');
+    }
+    closeModal();
+    renderContacts();
+    checkTodayFollowups();
+  } catch (e) {
+    console.error(e);
+    showToast('Error saving. Check connection.');
+  }
+}
+
+// ══════════════════════════════
+// DETAIL VIEW
+// ══════════════════════════════
+function openDetail(id) {
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  currentDetailId = id;
+
+  const photoEl = document.getElementById('detailPhoto');
+  photoEl.innerHTML = c.photo ? `<img src="${c.photo}">` : '👤';
+
+  document.getElementById('detailName').textContent = c.name;
+  const statusClass = { 'RNR': 'status-rnr', 'Not Reachable': 'status-nr', 'Profile Shared': 'status-ps', 'Not Interested': 'status-ni' }[c.status] || 'status-rnr';
+  const thosamBadge = c.thosam === 'yes' ? '<span class="thosam-badge thosam-yes">Thosam ✅</span>' : c.thosam === 'no' ? '<span class="thosam-badge thosam-no">Thosam ❌</span>' : '';
+  document.getElementById('detailStatusRow').innerHTML = `<span class="status-badge ${statusClass}">${c.status}</span>${thosamBadge}`;
+  document.getElementById('detailPhone').textContent = c.phone || '-';
+  document.getElementById('detailWA').textContent = c.wp || c.phone || '-';
+  document.getElementById('detailLocation').textContent = c.location || '-';
+  document.getElementById('detailFollowup').textContent = c.followup || '-';
+  document.getElementById('detailComments').textContent = c.comments || '-';
+  document.getElementById('detailCreated').textContent = c.createdAt ? new Date(c.createdAt).toLocaleString('en-IN') : '-';
+  document.getElementById('detailModified').textContent = c.modifiedAt ? new Date(c.modifiedAt).toLocaleString('en-IN') : '-';
+  document.getElementById('detailCallBtn').onclick = () => callContact(c.phone);
+  document.getElementById('detailWABtn').onclick = () => waContact(c.wp || c.phone);
+
+  document.getElementById('detailScreen').classList.add('visible');
+}
+
+function closeDetail() { document.getElementById('detailScreen').classList.remove('visible'); }
+
+async function deleteCurrentContact() {
+  if (!confirm('Delete this profile?')) return;
+  try {
+    await window._deleteDoc(window._doc(window._db, 'contacts', currentDetailId));
+    contacts = contacts.filter(c => c.id !== currentDetailId);
+    closeDetail();
+    renderContacts();
+    showToast('Profile deleted!');
+  } catch (e) { showToast('Error deleting.'); }
+}
+
+// ══════════════════════════════
+// CALL / WHATSAPP
+// ══════════════════════════════
+function callContact(phone) {
+  if (!phone) return;
+  window.location.href = 'tel:' + phone;
+}
+function waContact(phone) {
+  if (!phone) return;
+  const num = phone.replace(/\D/g, '');
+  window.open('https://wa.me/' + (num.startsWith('91') ? num : '91' + num), '_blank');
+}
+
+// ══════════════════════════════
+// DASHBOARD
+// ══════════════════════════════
+function updateDashboard() {
+  const total = contacts.length;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('dTotal').textContent = total;
+  document.getElementById('dSpoke').textContent = contacts.filter(c => c.status === 'Profile Shared').length;
+  document.getElementById('dRNR').textContent = contacts.filter(c => c.status === 'RNR').length;
+  document.getElementById('dNR').textContent = contacts.filter(c => c.status === 'Not Reachable').length;
+  document.getElementById('dNI').textContent = contacts.filter(c => c.status === 'Not Interested').length;
+  document.getElementById('dToday').textContent = contacts.filter(c => c.followup === today).length;
+
+  const recent = [...contacts].sort((a,b) => (b.modifiedAt||0)-(a.modifiedAt||0)).slice(0,5);
+  document.getElementById('recentList').innerHTML = recent.map(c => {
+    const statusClass = { 'RNR': 'status-rnr', 'Not Reachable': 'status-nr', 'Profile Shared': 'status-ps', 'Not Interested': 'status-ni' }[c.status] || 'status-rnr';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:12px;flex:1;color:var(--text)">${c.name}</div>
+      <span class="status-badge ${statusClass}">${c.status}</span>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════
+// FOLLOW-UP BANNER
+// ══════════════════════════════
+function checkTodayFollowups() {
+  const today = new Date().toISOString().split('T')[0];
+  const due = contacts.filter(c => c.followup === today);
+  const banner = document.getElementById('followupBanner');
+  if (due.length > 0) {
+    banner.classList.add('show');
+    document.getElementById('followupList').innerHTML = due.map(c =>
+      `<div class="followup-item" onclick="openDetail('${c.id}')">• ${c.name} — ${c.phone}</div>`
+    ).join('');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// ══════════════════════════════
+// NOTIFICATIONS
+// ══════════════════════════════
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function saveReminderTime() {
+  const t = document.getElementById('reminderTime').value;
+  localStorage.setItem('at_reminder_time', t);
+  showToast('Reminder set for ' + t);
+  scheduleReminder(t);
+}
+
+function scheduleReminder(time) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const [h, m] = time.split(':').map(Number);
+  const now = new Date();
+  const next = new Date();
+  next.setHours(h, m, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const ms = next - now;
+  setTimeout(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const due = contacts.filter(c => c.followup === today);
+    if (due.length > 0) {
+      new Notification('💍 Alliance Tracker', {
+        body: `${due.length} follow-up(s) due today!`,
+        icon: '💍'
+      });
+    }
+    scheduleReminder(time);
+  }, ms);
+}
+
+// ══════════════════════════════
+// EXPORT / BACKUP
+// ══════════════════════════════
+function exportCSV() {
+  const headers = ['Name','Phone','WhatsApp','Location','Status','Thosam','Follow-up','Comments','Created','Modified'];
+  const rows = contacts.map(c => [
+    c.name, c.phone, c.wp, c.location, c.status, c.thosam, c.followup, c.comments,
+    c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '',
+    c.modifiedAt ? new Date(c.modifiedAt).toLocaleDateString() : ''
+  ].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`));
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  downloadFile('alliance_tracker_export.csv', csv, 'text/csv');
+  showToast('CSV exported!');
+}
+
+function exportJSON() {
+  const data = contacts.map(({ id, photo, ...rest }) => rest); // skip photo to keep file small
+  downloadFile('alliance_tracker_backup.json', JSON.stringify(data, null, 2), 'application/json');
+  showToast('Backup downloaded!');
+}
+
+function importJSON() { document.getElementById('importFile').click(); }
+
+async function doImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  try {
+    const data = JSON.parse(text);
+    if (!confirm(`Import ${data.length} contacts? Existing data will remain.`)) return;
+    for (const c of data) {
+      c.createdAt = c.createdAt || Date.now();
+      c.modifiedAt = Date.now();
+      await window._addDoc(window._col(window._db, 'contacts'), c);
+    }
+    await loadContacts();
+    showToast(`${data.length} contacts imported!`);
+  } catch (err) { showToast('Invalid backup file.'); }
+}
+
+function downloadFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+}
+
+// ══════════════════════════════
+// TOAST
+// ══════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════
+// INIT
+// ══════════════════════════════
+initPin();
+
+// Restore reminder
+window.addEventListener('appReady', () => {
+  const savedTime = localStorage.getItem('at_reminder_time');
+  if (savedTime) scheduleReminder(savedTime);
+});
+</script>
+
+</body>
+</html>
