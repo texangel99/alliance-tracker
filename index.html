@@ -864,12 +864,26 @@ function unlockApp() {
 async function logoutApp() {
   if (!confirm('Log out? PIN required on next open.')) return;
   window._sessionDestroy(); // ← clears localStorage token
+
+  // ── Clear ALL data from DOM so nothing is visible behind PIN screen ──
   contacts = [];
+  document.getElementById('contactsList').innerHTML = '';
+  document.getElementById('statsRow').innerHTML = '';
+  document.getElementById('followupBanner').classList.remove('show');
+  document.getElementById('followupList').innerHTML = '';
+  document.getElementById('recentList').innerHTML = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').classList.remove('show');
+
+  // Reset nav to home
+  showHome();
+
+  // Hide app, show PIN
   document.getElementById('app').classList.remove('visible');
   document.getElementById('pinScreen').style.display = 'flex';
   pinBuffer = ''; pinConfirmBuffer = ''; updatePinDots();
   document.getElementById('pinMsg').textContent = '';
-  showHome();
+
   await initPin();
 }
 
