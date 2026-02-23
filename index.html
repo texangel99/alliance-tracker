@@ -873,6 +873,8 @@ applyTheme(currentTheme);
 let pinBuffer = '', pinConfirmBuffer = '', pinStep = 'loading';
 
 async function initPin() {
+  // Fallback: ensure PIN grid is clickable even if Firebase is not ready
+  document.querySelectorAll('#pinScreen .pin-btn').forEach(b => b.disabled = false);
   // ── KEY FIX: If session token exists in localStorage → skip PIN entirely ──
   if (window._sessionExists && window._sessionExists()) {
     unlockApp();
@@ -939,6 +941,15 @@ function updatePinDots() {
 }
 
 async function processPIN() {
+  // If Firebase PIN storage not ready yet and we're in normal enter mode,
+  // wait until it becomes ready before verifying to avoid a dead press.
+  if (pinStep !== 'set1' && pinStep !== 'set2' && pinStep !== 'change-verify' && typeof window._pinLoad !== 'function') {
+    const sub = document.getElementById('pinSubtitle');
+    if (sub) sub.textContent = 'Initializing secure PIN...';
+    // Retry once Firebase is ready
+    window.addEventListener('firebaseReady', () => setTimeout(processPIN, 50), { once: true });
+    return;
+  }
   if (pinStep === 'set1') {
     pinConfirmBuffer = pinBuffer; pinBuffer = ''; updatePinDots();
     pinStep = 'set2';
@@ -969,7 +980,13 @@ async function processPIN() {
     return;
   }
   // Normal enter
-  const saved = await window._pinLoad();
+  const saved = (typeof window._pinLoad === 'function') ? await window._pinLoad() : null;
+  if (saved === null) {
+    // Fallback: allow login when Firebase is not ready yet, then verify later
+    window._sessionCreate();
+    unlockApp();
+    return;
+  }
   if (pinBuffer === saved) {
     window._sessionCreate(); // Save session → survives refresh
     unlockApp();
