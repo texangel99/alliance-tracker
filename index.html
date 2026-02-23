@@ -366,23 +366,6 @@ select.form-input { appearance: none; cursor: pointer; }
 .loading { text-align: center; padding: 48px; color: var(--text3); font-size: 13px; }
 .spinner { width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* Cute panda walking loader - full small panda with footprints */
-.loading.cute { padding: 62px 20px; }
-.panda-scene { position: relative; width: 180px; height: 110px; margin: 0 auto 12px; overflow: visible; }
-.panda { font-size: 64px; position: absolute; bottom: 18px; left: -10px; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.35)); animation: pandaWalkX 2.6s cubic-bezier(.55,.08,.39,.97) infinite; }
-.panda::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -10px; height: 8px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,0.35), rgba(0,0,0,0)); filter: blur(4px); opacity: 0.5; }
-.footprints { position: absolute; bottom: 10px; left: 0; right: 0; height: 18px; background:
-  radial-gradient(6px 4px at 0px 8px, rgba(232,184,109,0.22) 44%, transparent 46%) 0 0/30px 100% repeat-x; 
-  opacity: 0.7; filter: blur(0.3px); animation: printsScroll 2.6s linear infinite; }
-.loading-text { margin-top: 8px; color: var(--text2); font-size: 13px; }
-@keyframes pandaWalkX { 0% { transform: translateX(0) } 50% { transform: translateX(140px) } 100% { transform: translateX(0) } }
-@keyframes printsScroll { 0% { background-position-x: 0 } 100% { background-position-x: -180px } }
-
-/* Panda SVG micro-animations */
-.panda-svg .leg.front { transform-origin: 60px 72px; animation: legWalk 0.8s ease-in-out infinite; }
-.panda-svg .leg.back  { transform-origin: 40px 72px; animation: legWalk 0.8s ease-in-out infinite reverse; }
-@keyframes legWalk { 0% { transform: rotate(8deg) } 50% { transform: rotate(-8deg) } 100% { transform: rotate(8deg) } }
 /* PULL TO REFRESH */
 .ptr-indicator {
   text-align: center; padding: 0; height: 0; overflow: hidden;
@@ -537,7 +520,9 @@ select.form-input { appearance: none; cursor: pointer; }
       <div class="ptr-spinner"></div>
       <span id="ptrText">Pull to refresh</span>
     </div>
-    <div class="contacts-list" id="contactsList"></div>
+    <div class="contacts-list" id="contactsList">
+      <div class="loading"><div class="spinner"></div>Loading profiles...</div>
+    </div>
   </div>
 
   <div id="dashScreen">
@@ -873,57 +858,27 @@ applyTheme(currentTheme);
 let pinBuffer = '', pinConfirmBuffer = '', pinStep = 'loading';
 
 async function initPin() {
-  // Fallback: ensure PIN grid is clickable even if Firebase is not ready
-  document.querySelectorAll('#pinScreen .pin-btn').forEach(b => b.disabled = false);
   // ── KEY FIX: If session token exists in localStorage → skip PIN entirely ──
-  if (window._sessionExists && window._sessionExists()) {
+  // This handles: page refresh, tab reopen, navigate back — all go straight to app.
+  // Only when session is destroyed (logout / reset) will PIN appear again.
+  if (window._sessionExists()) {
     unlockApp();
     return;
   }
 
-  // No session — show PIN keypad immediately (do not wait for Firebase)
-  const $pin = document.getElementById('pinScreen');
-  const $app = document.getElementById('app');
-  if ($pin) $pin.style.display = 'flex';
-  if ($app) $app.classList.remove('visible');
+  // No session — show PIN keypad
+  document.getElementById('pinScreen').style.display = 'flex';
+  document.getElementById('app').classList.remove('visible');
 
-  // Default UI while we detect saved PIN
-  pinStep = 'enter';
-  document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-  document.getElementById('pinResetLink').style.display = 'none';
-
-  // If Firebase helpers are ready, determine whether user must set or enter PIN
-  if (typeof window._pinLoad === 'function') {
-    try {
-      const savedPin = await window._pinLoad();
-      if (!savedPin) {
-        pinStep = 'set1';
-        document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
-        document.getElementById('pinResetLink').style.display = 'none';
-      } else {
-        pinStep = 'enter';
-        document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-        document.getElementById('pinResetLink').style.display = 'block';
-      }
-    } catch(e) {
-      // Keep default 'enter' state; when Firebase comes up, we will adjust below
-    }
+  const savedPin = await window._pinLoad();
+  if (!savedPin) {
+    pinStep = 'set1';
+    document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+    document.getElementById('pinResetLink').style.display = 'none';
   } else {
-    // Firebase not yet ready — update once available
-    window.addEventListener('firebaseReady', async () => {
-      try {
-        const savedPin = await window._pinLoad();
-        if (!savedPin) {
-          pinStep = 'set1';
-          document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
-          document.getElementById('pinResetLink').style.display = 'none';
-        } else {
-          pinStep = 'enter';
-          document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-          document.getElementById('pinResetLink').style.display = 'block';
-        }
-      } catch {}
-    }, { once:true });
+    pinStep = 'enter';
+    document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+    document.getElementById('pinResetLink').style.display = 'block';
   }
 }
 
@@ -941,15 +896,6 @@ function updatePinDots() {
 }
 
 async function processPIN() {
-  // If Firebase PIN storage not ready yet and we're in normal enter mode,
-  // wait until it becomes ready before verifying to avoid a dead press.
-  if (pinStep !== 'set1' && pinStep !== 'set2' && pinStep !== 'change-verify' && typeof window._pinLoad !== 'function') {
-    const sub = document.getElementById('pinSubtitle');
-    if (sub) sub.textContent = 'Initializing secure PIN...';
-    // Retry once Firebase is ready
-    window.addEventListener('firebaseReady', () => setTimeout(processPIN, 50), { once: true });
-    return;
-  }
   if (pinStep === 'set1') {
     pinConfirmBuffer = pinBuffer; pinBuffer = ''; updatePinDots();
     pinStep = 'set2';
@@ -980,13 +926,7 @@ async function processPIN() {
     return;
   }
   // Normal enter
-  const saved = (typeof window._pinLoad === 'function') ? await window._pinLoad() : null;
-  if (saved === null) {
-    // Fallback: allow login when Firebase is not ready yet, then verify later
-    window._sessionCreate();
-    unlockApp();
-    return;
-  }
+  const saved = await window._pinLoad();
   if (pinBuffer === saved) {
     window._sessionCreate(); // Save session → survives refresh
     unlockApp();
@@ -1108,15 +1048,10 @@ function setNavActive(id) {
 let contacts = [], currentFilter = 'all', currentSort = 'newest';
 let editingId = null, currentDetailId = null, thosamVal = 'na';
 
-async function loadContacts(minDelay=3000) {
+async function loadContacts() {
   try {
-    document.getElementById('contactsList').innerHTML = '<div class=\"loading cute\">\n  <div class=\"panda-scene\">\n    <div class=\"panda\" role=\"img\" aria-label=\"panda walking\">\n      <svg class=\"panda-svg\" viewBox=\"0 0 120 100\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">\n        <g transform=\"translate(10,10)\">\n          <ellipse cx=\"50\" cy=\"55\" rx=\"28\" ry=\"22\" fill=\"#fff\" stroke=\"#222\" stroke-width=\"2\"/>\n          <circle cx=\"38\" cy=\"36\" r=\"12\" fill=\"#fff\" stroke=\"#222\" stroke-width=\"2\"/>\n          <circle cx=\"62\" cy=\"36\" r=\"12\" fill=\"#fff\" stroke=\"#222\" stroke-width=\"2\"/>\n          <circle cx=\"33\" cy=\"25\" r=\"6\" fill=\"#222\"/>\n          <circle cx=\"67\" cy=\"25\" r=\"6\" fill=\"#222\"/>\n          <circle cx=\"38\" cy=\"38\" r=\"3\" fill=\"#222\"/>\n          <circle cx=\"62\" cy=\"38\" r=\"3\" fill=\"#222\"/>\n          <circle cx=\"50\" cy=\"44\" r=\"3.2\" fill=\"#222\"/>\n          <ellipse cx=\"50\" cy=\"73\" rx=\"18\" ry=\"8\" fill=\"rgba(0,0,0,0.25)\"/>\n          <ellipse class=\"leg back\"  cx=\"40\" cy=\"72\" rx=\"6\" ry=\"10\" fill=\"#222\"/>
-          <ellipse class=\"leg front\" cx=\"60\" cy=\"72\" rx=\"6\" ry=\"10\" fill=\"#222\"/>
-        </g>\n      </svg>\n    </div>\n    <div class=\"footprints\"></div>\n  </div>\n  <div class=\"loading-text\">Finding profiles...</div>\n</div>';
-    const t0 = Date.now();
+    document.getElementById('contactsList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading profiles...</div>';
     contacts = await window._loadContacts();
-    const elapsed = Date.now() - t0;
-    if (elapsed < minDelay) await new Promise(r => setTimeout(r, minDelay - elapsed));
     renderContacts(); updateStatsRow(); checkTodayFollowups();
     if (document.getElementById('dashScreen').classList.contains('visible')) updateDashboard();
   } catch(e) {
@@ -1539,7 +1474,7 @@ function openLightboxFromDetail(imgEl) { const wrap=document.getElementById('det
       indicator.style.height = '50px';
       indicator.style.opacity = '1';
       ptrText.textContent = 'Refreshing...';
-      await loadContacts(1500);
+      await loadContacts();
       showToast('✅ Refreshed!');
     }
     // Reset
@@ -1551,27 +1486,9 @@ function openLightboxFromDetail(imgEl) { const wrap=document.getElementById('det
 })();
 
 // ══ INIT ══
-// Show PIN immediately so user can interact; when Firebase is ready, adjust state if needed
-initPin();
-if (!window._firebaseReady) {
-  window.addEventListener('firebaseReady', async () => {
-    // If no active session, refine the PIN UI once we can read saved PIN
-    if (!window._sessionExists || !window._sessionExists()) {
-      try {
-        const savedPin = await window._pinLoad();
-        if (!savedPin) {
-          pinStep = 'set1';
-          document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
-          document.getElementById('pinResetLink').style.display = 'none';
-        } else {
-          pinStep = 'enter';
-          document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-          document.getElementById('pinResetLink').style.display = 'block';
-        }
-      } catch {}
-    }
-  }, { once:true });
-}
+// Wait for Firebase, then check session → show PIN or app
+if (window._firebaseReady) { initPin(); }
+else { window.addEventListener('firebaseReady', ()=>initPin(), { once:true }); }
 </script>
 </body>
 </html>
