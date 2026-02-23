@@ -874,26 +874,54 @@ let pinBuffer = '', pinConfirmBuffer = '', pinStep = 'loading';
 
 async function initPin() {
   // ── KEY FIX: If session token exists in localStorage → skip PIN entirely ──
-  // This handles: page refresh, tab reopen, navigate back — all go straight to app.
-  // Only when session is destroyed (logout / reset) will PIN appear again.
-  if (window._sessionExists()) {
+  if (window._sessionExists && window._sessionExists()) {
     unlockApp();
     return;
   }
 
-  // No session — show PIN keypad
-  document.getElementById('pinScreen').style.display = 'flex';
-  document.getElementById('app').classList.remove('visible');
+  // No session — show PIN keypad immediately (do not wait for Firebase)
+  const $pin = document.getElementById('pinScreen');
+  const $app = document.getElementById('app');
+  if ($pin) $pin.style.display = 'flex';
+  if ($app) $app.classList.remove('visible');
 
-  const savedPin = await window._pinLoad();
-  if (!savedPin) {
-    pinStep = 'set1';
-    document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
-    document.getElementById('pinResetLink').style.display = 'none';
+  // Default UI while we detect saved PIN
+  pinStep = 'enter';
+  document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+  document.getElementById('pinResetLink').style.display = 'none';
+
+  // If Firebase helpers are ready, determine whether user must set or enter PIN
+  if (typeof window._pinLoad === 'function') {
+    try {
+      const savedPin = await window._pinLoad();
+      if (!savedPin) {
+        pinStep = 'set1';
+        document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+        document.getElementById('pinResetLink').style.display = 'none';
+      } else {
+        pinStep = 'enter';
+        document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+        document.getElementById('pinResetLink').style.display = 'block';
+      }
+    } catch(e) {
+      // Keep default 'enter' state; when Firebase comes up, we will adjust below
+    }
   } else {
-    pinStep = 'enter';
-    document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
-    document.getElementById('pinResetLink').style.display = 'block';
+    // Firebase not yet ready — update once available
+    window.addEventListener('firebaseReady', async () => {
+      try {
+        const savedPin = await window._pinLoad();
+        if (!savedPin) {
+          pinStep = 'set1';
+          document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+          document.getElementById('pinResetLink').style.display = 'none';
+        } else {
+          pinStep = 'enter';
+          document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+          document.getElementById('pinResetLink').style.display = 'block';
+        }
+      } catch {}
+    }, { once:true });
   }
 }
 
@@ -1506,9 +1534,27 @@ function openLightboxFromDetail(imgEl) { const wrap=document.getElementById('det
 })();
 
 // ══ INIT ══
-// Wait for Firebase, then check session → show PIN or app
-if (window._firebaseReady) { initPin(); }
-else { window.addEventListener('firebaseReady', ()=>initPin(), { once:true }); }
+// Show PIN immediately so user can interact; when Firebase is ready, adjust state if needed
+initPin();
+if (!window._firebaseReady) {
+  window.addEventListener('firebaseReady', async () => {
+    // If no active session, refine the PIN UI once we can read saved PIN
+    if (!window._sessionExists || !window._sessionExists()) {
+      try {
+        const savedPin = await window._pinLoad();
+        if (!savedPin) {
+          pinStep = 'set1';
+          document.getElementById('pinSubtitle').textContent = 'Set a 4-digit PIN';
+          document.getElementById('pinResetLink').style.display = 'none';
+        } else {
+          pinStep = 'enter';
+          document.getElementById('pinSubtitle').textContent = 'Enter your PIN';
+          document.getElementById('pinResetLink').style.display = 'block';
+        }
+      } catch {}
+    }
+  }, { once:true });
+}
 </script>
 </body>
 </html>
